@@ -58,7 +58,7 @@ for pair in "arm64 AppleSilicon" "x86_64 Intel"; do
   [[ "$minos" == "$MIN_MACOS" ]] || { echo "Expected minimum macOS $MIN_MACOS, got $minos" >&2; exit 1; }
   codesign --verify --deep --strict "$app"
   for code in "$app" "$app/Contents/PlugIns/TetherShare.appex"; do
-    codesign -dvv "$code" 2>&1 | grep -q "Authority=$IDENTITY" \
+    [[ "$(codesign -dvv "$code" 2>&1)" == *"Authority=$IDENTITY"* ]] \
       || { echo "$code isn't signed with $IDENTITY" >&2; exit 1; }
   done
 
