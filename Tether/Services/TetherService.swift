@@ -234,23 +234,47 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
 
         // A packet may announce a binary payload that follows on a separate TLS
         // connection. Fetch it in the background and deliver the bytes separately.
-        guard let size = packet.payloadSize, size > 0,
-              let rawPort = packet.payloadTransferInfo?["port"]?.value,
-              let port = Self.payloadPort(from: rawPort) else { return }
+        guard let size = packet.payloadSize, size > 0 else { return }
+        guard let rawPort = packet.payloadTransferInfo?["port"]?.value,
+              let port = Self.payloadPort(from: rawPort) else {
+            TetherLog("[TetherService] \(packet.type) announced \(size) bytes but no usable payload port: \(String(describing: packet.payloadTransferInfo))")
+            return
+        }
+        TetherLog("[TetherService] \(packet.type) announced \(size) bytes; fetching from \(connection.host):\(port)")
 
-        PayloadDownloader.download(host: connection.host, port: port, size: size) { [weak self] result in
-            guard let self else { return }
-            switch result {
-            case .success(let data):
+        PayloadDownloader.download(
+            host: connection.host,
+            port: port,
+            size: size,
+            expectedPeerFingerprint: connection.peerCertificateFingerprint,
+            onProgress: { [weak self] fraction in
                 Task { @MainActor in
+                    guard let self else { return }
                     for plugin in self.plugins where plugin.supportedPacketTypes.contains(packet.type) {
-                        plugin.handlePayload(connection: connection, packet: packet, data: data)
+                        plugin.handlePayloadProgress(connection: connection, packet: packet, fraction: fraction)
                     }
                 }
-            case .failure(let error):
-                TetherLog("[TetherService] Payload transfer failed for \(packet.type): \(error.localizedDescription)")
+            },
+            completion: { [weak self] result in
+                Task { @MainActor in
+                    guard let self else { return }
+                    let interested = self.plugins.filter { $0.supportedPacketTypes.contains(packet.type) }
+                    switch result {
+                    case .success(let fileURL):
+                        for plugin in interested {
+                            plugin.handlePayload(connection: connection, packet: packet, fileURL: fileURL)
+                        }
+                        // Plugins have moved or copied what they want to keep.
+                        try? FileManager.default.removeItem(at: fileURL)
+                    case .failure(let error):
+                        TetherLog("[TetherService] Payload transfer failed for \(packet.type): \(error.localizedDescription)")
+                        for plugin in interested {
+                            plugin.handlePayloadFailure(connection: connection, packet: packet, error: error)
+                        }
+                    }
+                }
             }
-        }
+        )
     }
 
     /// Payload ports are integers on the wire, but tolerate a stringified value.

@@ -39,17 +39,20 @@ public final class SMSPlugin: ObservableObject, TetherPlugin, @unchecked Sendabl
         }
     }
 
-    public func handlePayload(connection: DeviceConnection, packet: NetworkPacket, data: Data) {
+    public func handlePayload(connection: DeviceConnection, packet: NetworkPacket, fileURL payloadURL: URL) {
         guard packet.type == Self.attachmentFileType else { return }
+        // `filename` is the attachment's identifier on the phone; it is matched
+        // as-is below but must never be used as a path without sanitising.
         let filename = packet.string(for: "filename") ?? "attachment"
         let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
         let attachmentDir = cachesDir.appendingPathComponent("TetherAttachments", isDirectory: true)
 
         try? FileManager.default.createDirectory(at: attachmentDir, withIntermediateDirectories: true)
-        let fileURL = attachmentDir.appendingPathComponent(filename)
+        let fileURL = attachmentDir.appendingPathComponent(SafeFilename.sanitize(filename, fallback: "attachment"))
 
         do {
-            try data.write(to: fileURL, options: .atomic)
+            try? FileManager.default.removeItem(at: fileURL)
+            try FileManager.default.moveItem(at: payloadURL, to: fileURL)
             TetherLog("[SMSPlugin] Saved SMS attachment to \(fileURL.path)")
 
             let targetThreadId = (packet.int64(for: "thread_id")) != 0 ? packet.int64(for: "thread_id") : nil

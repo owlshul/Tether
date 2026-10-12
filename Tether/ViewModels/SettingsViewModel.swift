@@ -38,7 +38,7 @@ public final class SettingsViewModel {
         self.deviceName = DeviceIdentity.shared.deviceName
         self.deviceId = DeviceIdentity.shared.deviceId
         self.certificateFingerprint = DeviceIdentity.shared.certificateFingerprint
-        self.pairedDevices = Array(TrustStore.shared.pairedDevices.values)
+        reloadPairedDevices()
         self.isAccessibilityTrusted = AXIsProcessTrusted()
         self.checkLaunchAtLoginStatus()
         self.refreshNotificationStatus()
@@ -54,7 +54,21 @@ public final class SettingsViewModel {
 
     public func unpair(deviceId: String) {
         TetherService.shared.unpair(deviceId: deviceId)
-        self.pairedDevices = Array(TrustStore.shared.pairedDevices.values)
+        reloadPairedDevices()
+    }
+
+    public func setSync(deviceId: String, clipboard: Bool, notifications: Bool) {
+        guard !isMockMode else { return }
+        TrustStore.shared.updateSettings(deviceId: deviceId, clipboard: clipboard, notifications: notifications)
+        reloadPairedDevices()
+    }
+
+    /// Port the TCP listener actually bound, which peers dial back on.
+    public var listeningPort: Int { DeviceIdentity.shared.advertisedTCPPort }
+
+    private func reloadPairedDevices() {
+        self.pairedDevices = TrustStore.shared.pairedDevices.values
+            .sorted { $0.deviceName.localizedStandardCompare($1.deviceName) == .orderedAscending }
     }
 
     private func checkLaunchAtLoginStatus() {
@@ -119,6 +133,7 @@ public final class SettingsViewModel {
 
     // MARK: - Mocks for Previews
 
+    #if DEBUG
     public static func mock() -> SettingsViewModel {
         let vm = SettingsViewModel(isMock: true)
         vm.deviceName = "subhash’s MacBook Air"
@@ -145,4 +160,5 @@ public final class SettingsViewModel {
         vm.isAccessibilityTrusted = false
         return vm
     }
+    #endif
 }

@@ -102,6 +102,14 @@ public protocol DeviceConnectionDelegate: AnyObject, Sendable {
 }
 
 public final class DeviceConnection: @unchecked Sendable {
+    /// Upper bound for the plaintext identity line read before TLS starts.
+    private static let maxIdentityLineBytes = 64 * 1024
+    /// Upper bound for one JSON packet. Large SMS syncs reach a few MB; anything
+    /// beyond this is a broken or hostile peer, and the stream cannot be resynced.
+    private static let maxPacketBytes = 32 * 1024 * 1024
+    private static let handshakeTimeout: TimeInterval = 10
+    private static let writeTimeout: TimeInterval = 15
+
     public let host: String
     public let port: Int
     public let isOutgoing: Bool
@@ -110,6 +118,9 @@ public final class DeviceConnection: @unchecked Sendable {
     public private(set) var peerDeviceInfo: DeviceInfo?
     public private(set) var peerCertificateFingerprint: String?
     public private(set) var pairState: PairState = .notPaired
+    /// Set when the peer claims a paired device ID but presents a different
+    /// certificate than the one pinned at pairing time.
+    public private(set) var hasCertificateMismatch = false
     public var isDisconnected: Bool { isClosed }
 
     public weak var delegate: DeviceConnectionDelegate?
@@ -215,7 +226,7 @@ public final class DeviceConnection: @unchecked Sendable {
             return
         }
 
-        let plainPacket = DeviceIdentity.shared.toDeviceInfo(tcpPort: 1716)
+        let plainPacket = DeviceIdentity.shared.toDeviceInfo()
             .toConnectionPacket(targetDeviceId: targetId, targetProtocolVersion: NetworkPacket.protocolVersion)
 
         guard let data = try? plainPacket.serialize() else {
@@ -252,6 +263,11 @@ public final class DeviceConnection: @unchecked Sendable {
                 break
             }
             lineData.append(byte)
+            if lineData.count > Self.maxIdentityLineBytes {
+                TetherLog("[DeviceConnection] Identity line from \(host) exceeded \(Self.maxIdentityLineBytes) bytes; dropping")
+                disconnect()
+                return
+            }
         }
 
         if let packet = try? NetworkPacket.unserialize(from: lineData) {
@@ -289,20 +305,7 @@ public final class DeviceConnection: @unchecked Sendable {
             SSLSetSessionOption(ctx, .breakOnCertRequested, true)
         }
 
-        var status: OSStatus = errSSLWouldBlock
-        let deadline = Date().addingTimeInterval(5.0)
-
-        while status == errSSLWouldBlock || status == errSSLPeerAuthCompleted || status == errSSLClientCertRequested {
-            if Date() > deadline {
-                TetherLog("[DeviceConnection] TLS Handshake timed out (status: \(status))")
-                disconnect()
-                return
-            }
-            status = SSLHandshake(ctx)
-            if status == errSSLWouldBlock {
-                usleep(5000) // 5ms
-            }
-        }
+        let status = SocketTLS.handshake(ctx, fd: socketFD, deadline: Date().addingTimeInterval(Self.handshakeTimeout))
 
         guard status == noErr else {
             TetherLog("[DeviceConnection] TLS Handshake failed with status: \(status)")
@@ -318,7 +321,7 @@ public final class DeviceConnection: @unchecked Sendable {
         setupReadSource()
 
         // Send full encrypted identity packet
-        let fullIdentity = DeviceIdentity.shared.toDeviceInfo(tcpPort: 1716).toFullIdentityPacket()
+        let fullIdentity = DeviceIdentity.shared.toDeviceInfo().toFullIdentityPacket()
         send(packet: fullIdentity)
     }
 
@@ -347,11 +350,17 @@ public final class DeviceConnection: @unchecked Sendable {
             if bytesRead > 0 {
                 lock.withLock {
                     readBuffer.append(buffer, count: bytesRead)
-                    if readBuffer.count > 1_000_000 {
-                        readBuffer.removeAll()
-                    }
                 }
                 processReadBuffer()
+                // Whatever is left is an incomplete packet. If it is already too big
+                // the peer is broken; clearing it would desync the stream, so drop
+                // the connection instead.
+                let pending = lock.withLock { readBuffer.count }
+                if pending > Self.maxPacketBytes {
+                    TetherLog("[DeviceConnection] Packet from \(host) exceeded \(Self.maxPacketBytes) bytes without a terminator; disconnecting")
+                    disconnect()
+                    return
+                }
             }
 
             if status == errSSLWouldBlock {
@@ -421,50 +430,44 @@ public final class DeviceConnection: @unchecked Sendable {
             return
         }
 
-        // Dispatch other packets to delegate
+        // Everything else is plugin traffic, which only a verified, paired peer may send.
+        guard pairState == .paired else {
+            TetherLog("[DeviceConnection] Dropping \(packet.type) from unpaired peer \(host)")
+            return
+        }
         delegate?.deviceConnection(self, didReceivePacket: packet)
     }
 
     private func extractPeerCertificate() {
-        guard let ctx = sslContext else { return }
-        var trust: SecTrust?
-        let status = SSLCopyPeerTrust(ctx, &trust)
-        guard status == noErr, let t = trust else {
-            TetherLog("[DeviceConnection] Warning: Could not copy peer trust (status: \(status))")
+        guard let ctx = sslContext, let fingerprint = SocketTLS.peerFingerprint(ctx) else {
+            TetherLog("[DeviceConnection] Warning: could not read the peer certificate from \(host)")
             return
         }
-
-        var peerCert: SecCertificate?
-        if let chain = SecTrustCopyCertificateChain(t) as? [SecCertificate], let first = chain.first {
-            peerCert = first
-        } else {
-            let count = SecTrustGetCertificateCount(t)
-            if count > 0 {
-                peerCert = SecTrustGetCertificateAtIndex(t, 0)
-            }
-        }
-
-        guard let cert = peerCert else {
-            TetherLog("[DeviceConnection] Warning: Could not copy peer certificate from trust chain (status: \(status))")
-            return
-        }
-
-        let certData = SecCertificateCopyData(cert) as Data
-        let digest = SHA256.hash(data: certData)
-        let fingerprint = digest.map { String(format: "%02x", $0) }.joined(separator: ":")
         self.peerCertificateFingerprint = fingerprint
         TetherLog("[DeviceConnection] Peer certificate fingerprint: \(fingerprint)")
     }
 
+    /// A device is paired only if its ID is in the trust store *and* it presented
+    /// the exact certificate pinned when it was paired. The ID alone is broadcast
+    /// in clear over UDP, so it proves nothing.
     private func checkTrustStatus() {
         guard let info = peerDeviceInfo else { return }
-        if TrustStore.shared.isTrusted(deviceId: info.deviceId) {
+        guard let paired = TrustStore.shared.pairedDevice(for: info.deviceId) else {
+            self.pairState = .notPaired
+            TetherLog("[DeviceConnection] Device \(info.deviceName) is not paired")
+            delegate?.deviceConnection(self, didUpdatePairState: .notPaired)
+            return
+        }
+
+        if SocketTLS.fingerprintsMatch(peerCertificateFingerprint, paired.certificateFingerprint) {
             self.pairState = .paired
-            TetherLog("[DeviceConnection] Device \(info.deviceName) is trusted/paired")
+            TrustStore.shared.updateLastSeen(deviceId: info.deviceId)
+            TetherLog("[DeviceConnection] Device \(info.deviceName) is paired (certificate verified)")
             delegate?.deviceConnection(self, didUpdatePairState: .paired)
         } else {
             self.pairState = .notPaired
-            TetherLog("[DeviceConnection] Device \(info.deviceName) is not paired")
+            self.hasCertificateMismatch = true
+            TetherLog("[DeviceConnection] Refusing \(info.deviceName) (\(info.deviceId)): certificate \(peerCertificateFingerprint ?? "none") does not match the pinned one")
             delegate?.deviceConnection(self, didUpdatePairState: .notPaired)
         }
     }
@@ -499,10 +502,13 @@ public final class DeviceConnection: @unchecked Sendable {
                 break
             }
         } else {
-            // Unpair / reject
+            // Unpair / reject. Only a verified peer may revoke its own trust entry,
+            // otherwise anyone spoofing the device ID could unpair the real phone.
             TetherLog("[DeviceConnection] Peer rejected or unpaired from us")
+            if pairState == .paired {
+                TrustStore.shared.remove(deviceId: info.deviceId)
+            }
             self.pairState = .notPaired
-            TrustStore.shared.remove(deviceId: info.deviceId)
             delegate?.deviceConnection(self, didUpdatePairState: .notPaired)
             connectionQueue.asyncAfter(deadline: .now() + 0.2) { [weak self] in
                 self?.disconnect()
@@ -574,8 +580,13 @@ public final class DeviceConnection: @unchecked Sendable {
             return
         }
 
-        let fingerprint = peerCertificateFingerprint ?? TrustStore.shared.pairedDevice(for: info.deviceId)?.certificateFingerprint ?? ""
+        guard let fingerprint = peerCertificateFingerprint, !fingerprint.isEmpty else {
+            TetherLog("[DeviceConnection] Cannot complete pairing: no peer certificate to pin")
+            rejectPairing()
+            return
+        }
         self.pairState = .paired
+        self.hasCertificateMismatch = false
         let pairedDevice = PairedDevice(
             deviceId: info.deviceId,
             deviceName: info.deviceName,
@@ -591,31 +602,13 @@ public final class DeviceConnection: @unchecked Sendable {
     public func send(packet: NetworkPacket) {
         guard let data = try? packet.serialize() else { return }
         connectionQueue.async { [weak self] in
-            guard let self = self, let ctx = self.sslContext else { return }
+            guard let self, let ctx = self.sslContext, !self.isClosed else { return }
 
-            data.withUnsafeBytes { rawBuffer in
-                guard var ptr = rawBuffer.baseAddress else { return }
-                var remaining = data.count
-                var retries = 0
-
-                while remaining > 0 && retries < 100 {
-                    var written: Int = 0
-                    let status = SSLWrite(ctx, ptr, remaining, &written)
-                    if written > 0 {
-                        remaining -= written
-                        ptr = ptr.advanced(by: written)
-                    }
-                    if remaining == 0 { break }
-                    if status == errSSLWouldBlock {
-                        usleep(2000) // 2ms
-                        retries += 1
-                        continue
-                    }
-                    if status != noErr {
-                        TetherLog("[DeviceConnection] SSLWrite failed with status \(status)")
-                        break
-                    }
-                }
+            let status = SocketTLS.writeAll(ctx, fd: self.socketFD, data, deadline: Date().addingTimeInterval(Self.writeTimeout))
+            if status != noErr {
+                // A partial packet has been written; the stream is unusable now.
+                TetherLog("[DeviceConnection] SSLWrite of \(packet.type) failed with status \(status); disconnecting")
+                self.disconnect()
             }
         }
     }

@@ -35,37 +35,21 @@ public final class TetherAppModel {
     public var offlineDevices: [DeviceViewModel] = []
     public var incomingPairRequest: PairRequestViewModel?
     public var selectedDeviceId: String?
-    public var searchText: String = ""
+    public var isShowingConnectByIP = false
     public var isRunning: Bool = false
-    public var isSearching: Bool = false
     public var notificationAuthStatus: UNAuthorizationStatus = .authorized
 
     public var isNotificationPermissionDenied: Bool {
         notificationAuthStatus == .denied
     }
 
-    private var cancellables = Set<AnyCancellable>()
-    private var isMockMode: Bool = false
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var deviceCache: [String: DeviceViewModel] = [:]
+    @ObservationIgnored private var isMockMode: Bool = false
 
-    public var filteredConnectedDevices: [DeviceViewModel] {
-        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return connectedDevices
-        }
-        return connectedDevices.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
-    }
-
-    public var filteredAvailableDevices: [DeviceViewModel] {
-        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return availableDevices
-        }
-        return availableDevices.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
-    }
-
-    public var filteredOfflineDevices: [DeviceViewModel] {
-        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return offlineDevices
-        }
-        return offlineDevices.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+    /// Paired devices first (connected, then offline), as shown in the sidebar.
+    public var pairedDevices: [DeviceViewModel] {
+        connectedDevices + offlineDevices
     }
 
     public var allDevices: [DeviceViewModel] {
@@ -73,33 +57,18 @@ public final class TetherAppModel {
     }
 
     public var selectedDevice: DeviceViewModel? {
-        guard let id = selectedDeviceId else { return connectedDevices.first ?? availableDevices.first ?? offlineDevices.first }
+        guard let id = selectedDeviceId else { return nil }
         return allDevices.first { $0.id == id }
     }
 
-    public var statusIconName: String {
-        if !connectedDevices.isEmpty {
-            return "iphone.badge.checkmark"
-        } else if isRunning {
-            return "antenna.radiowaves.left.and.right"
-        } else {
-            return "antenna.radiowaves.left.and.right.slash"
-        }
+    /// The device the menu bar acts on: the selected one if connected, else the first connected.
+    public var primaryDevice: DeviceViewModel? {
+        if let selected = selectedDevice, selected.isConnected { return selected }
+        return connectedDevices.first
     }
 
     public var statusMenuBarImageName: String {
         connectedDevices.isEmpty ? "MenuBarDisconnected" : "MenuBarConnected"
-    }
-
-    public var statusSubtitle: String {
-        if !connectedDevices.isEmpty {
-            let names = connectedDevices.map(\.name).joined(separator: ", ")
-            return "Connected to \(names)"
-        } else if isRunning {
-            return "Searching for devices..."
-        } else {
-            return "Tether Offline"
-        }
     }
 
     public init(isMock: Bool = false) {
@@ -113,101 +82,65 @@ public final class TetherAppModel {
 
     private func setupLiveSubscriptions() {
         let service = TetherService.shared
-        let trustStore = TrustStore.shared
 
         service.$isRunning
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] running in
-                self?.isRunning = running
-            }
-            .store(in: &cancellables)
-
-        service.$connectedDevices
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.rebuildDeviceLists()
-            }
-            .store(in: &cancellables)
-
-        service.$discoveredDevices
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.rebuildDeviceLists()
-            }
+            .sink { [weak self] running in self?.isRunning = running }
             .store(in: &cancellables)
 
         service.$incomingPairRequest
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] pairReq in
-                if let req = pairReq {
-                    self?.incomingPairRequest = PairRequestViewModel(
-                        id: req.info.deviceId,
-                        deviceName: req.info.deviceName,
-                        deviceType: req.info.deviceType,
-                        fingerprint: req.connection.peerCertificateFingerprint
+            .sink { [weak self] request in
+                self?.incomingPairRequest = request.map {
+                    PairRequestViewModel(
+                        id: $0.info.deviceId,
+                        deviceName: $0.info.deviceName,
+                        deviceType: $0.info.deviceType,
+                        fingerprint: $0.connection.peerCertificateFingerprint
                     )
-                } else {
-                    self?.incomingPairRequest = nil
                 }
             }
             .store(in: &cancellables)
 
-        trustStore.$pairedDevices
+        let deviceListChanges: [AnyPublisher<Void, Never>] = [
+            service.$connectedDevices.map { _ in () }.eraseToAnyPublisher(),
+            service.$discoveredDevices.map { _ in () }.eraseToAnyPublisher(),
+            TrustStore.shared.$pairedDevices.map { _ in () }.eraseToAnyPublisher()
+        ]
+        Publishers.MergeMany(deviceListChanges)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.rebuildDeviceLists()
-            }
+            .sink { [weak self] in self?.rebuildDeviceLists() }
             .store(in: &cancellables)
 
-        // Plugin updates
-        service.batteryPlugin.$deviceBatteries
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.updateDevicePluginStates()
-            }
+        let pluginChanges: [AnyPublisher<Void, Never>] = [
+            service.batteryPlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            service.connectivityReportPlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            service.sharePlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            service.smsPlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            service.runCommandPlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            service.mediaControlPlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            service.remoteVolumePlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            service.notificationPlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher()
+        ]
+        // objectWillChange fires before the value lands; hop a runloop turn and
+        // coalesce bursts (a single SMS sync can publish hundreds of times).
+        Publishers.MergeMany(pluginChanges)
+            .debounce(for: .milliseconds(30), scheduler: DispatchQueue.main)
+            .sink { [weak self] in self?.updateDevicePluginStates() }
             .store(in: &cancellables)
+    }
 
-        service.connectivityReportPlugin.$signalStrength
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.updateDevicePluginStates()
-            }
-            .store(in: &cancellables)
-
-        service.sharePlugin.$transfers
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.updateDevicePluginStates()
-            }
-            .store(in: &cancellables)
-
-        service.smsPlugin.$conversations
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.updateDevicePluginStates()
-            }
-            .store(in: &cancellables)
-
-        service.runCommandPlugin.$commands
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.updateDevicePluginStates()
-            }
-            .store(in: &cancellables)
-
-        service.mediaControlPlugin.$nowPlaying
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.updateDevicePluginStates()
-            }
-            .store(in: &cancellables)
-
-        service.remoteVolumePlugin.$sinks
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.updateDevicePluginStates()
-            }
-            .store(in: &cancellables)
+    /// Returns the cached view model for `id`, creating it once.
+    private func device(id: String, name: String, type: DeviceType, status: DeviceStatus) -> DeviceViewModel {
+        let vm = deviceCache[id] ?? DeviceViewModel(id: id, name: name, deviceType: type, status: status)
+        deviceCache[id] = vm
+        if vm.name != name { vm.name = name }
+        if vm.deviceType != type { vm.deviceType = type }
+        if vm.status != status {
+            vm.status = status
+            vm.isAwaitingPairing = false
+        }
+        return vm
     }
 
     public func rebuildDeviceLists() {
@@ -218,144 +151,144 @@ public final class TetherAppModel {
         var connected: [DeviceViewModel] = []
         var available: [DeviceViewModel] = []
         var offline: [DeviceViewModel] = []
-
-        let pairedIds = Set(trustStore.pairedDevices.keys)
         var connectedIds = Set<String>()
 
-        // 1. Process active connections
-        for (deviceId, conn) in service.connectedDevices {
-            guard !conn.isDisconnected else { continue }
+        // A connection only counts once its certificate has been verified.
+        for (deviceId, conn) in service.connectedDevices where !conn.isDisconnected && conn.pairState == .paired {
             connectedIds.insert(deviceId)
-
-            let name = conn.peerDeviceInfo?.deviceName ?? trustStore.pairedDevice(for: deviceId)?.deviceName ?? "Device"
-            let type = conn.peerDeviceInfo?.deviceType ?? trustStore.pairedDevice(for: deviceId)?.deviceType ?? .phone
-
-            let vm = DeviceViewModel(
+            let paired = trustStore.pairedDevice(for: deviceId)
+            let vm = device(
                 id: deviceId,
-                name: name,
-                deviceType: type,
+                name: conn.peerDeviceInfo?.deviceName ?? paired?.deviceName ?? "Device",
+                type: conn.peerDeviceInfo?.deviceType ?? paired?.deviceType ?? .phone,
                 status: .connected
             )
-            wireActions(to: vm, connection: conn)
+            wireConnectedActions(to: vm, connection: conn)
             connected.append(vm)
         }
 
-        // 2. Process discovered un-paired devices
-        for disc in service.discoveredDevices {
-            if !pairedIds.contains(disc.deviceId) && !connectedIds.contains(disc.deviceId) {
-                let vm = DeviceViewModel(
-                    id: disc.deviceId,
-                    name: disc.deviceName,
-                    deviceType: disc.deviceType,
-                    status: .available
-                )
-                let discId = disc.deviceId
-                vm.onPair = { [weak self] in
-                    self?.pair(with: discId)
-                }
-                available.append(vm)
-            }
+        for (pairedId, paired) in trustStore.pairedDevices where !connectedIds.contains(pairedId) {
+            let vm = device(id: pairedId, name: paired.deviceName, type: paired.deviceType, status: .offline)
+            vm.lastSeen = paired.lastSeenDate
+            vm.onUnpair = { [weak self] in self?.unpair(deviceId: pairedId) }
+            offline.append(vm)
         }
 
-        // 3. Process offline paired devices
-        for (pairedId, paired) in trustStore.pairedDevices {
-            if !connectedIds.contains(pairedId) {
-                let vm = DeviceViewModel(
-                    id: pairedId,
-                    name: paired.deviceName,
-                    deviceType: paired.deviceType,
-                    status: .offline
-                )
-                let devId = pairedId
-                vm.onUnpair = { [weak self] in
-                    self?.unpair(deviceId: devId)
-                }
-                offline.append(vm)
-            }
+        let knownIds = connectedIds.union(trustStore.pairedDevices.keys)
+        for disc in service.discoveredDevices where !knownIds.contains(disc.deviceId) {
+            let vm = device(id: disc.deviceId, name: disc.deviceName, type: disc.deviceType, status: .available)
+            let discId = disc.deviceId
+            vm.onPair = { [weak self] in self?.pair(with: discId) }
+            available.append(vm)
         }
 
-        self.connectedDevices = connected
-        self.availableDevices = available
-        self.offlineDevices = offline
+        let byName: (DeviceViewModel, DeviceViewModel) -> Bool = {
+            $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        }
+        connectedDevices = connected.sorted(by: byName)
+        availableDevices = available.sorted(by: byName)
+        offlineDevices = offline.sorted(by: byName)
 
         updateDevicePluginStates()
 
         if selectedDeviceId == nil || !allDevices.contains(where: { $0.id == selectedDeviceId }) {
-            selectedDeviceId = connected.first?.id ?? available.first?.id ?? offline.first?.id
+            selectedDeviceId = connectedDevices.first?.id ?? offlineDevices.first?.id ?? availableDevices.first?.id
         }
     }
 
-    private func wireActions(to vm: DeviceViewModel, connection: DeviceConnection) {
+    private func wireConnectedActions(to vm: DeviceViewModel, connection: DeviceConnection) {
         let deviceId = vm.id
         let service = TetherService.shared
 
-        vm.onPing = { [weak service] in
-            service?.sendPing(to: deviceId)
-        }
-        vm.onSendClipboard = { [weak service] in
+        vm.onPing = { service.sendPing(to: deviceId) }
+        vm.onSendClipboard = {
             if let text = NSPasteboard.general.string(forType: .string) {
-                service?.clipboardPlugin.broadcastClipboard(content: text)
+                service.clipboardPlugin.broadcastClipboard(content: text)
             }
         }
-        vm.onSendFile = { [weak service] url in
-            service?.sendFiles([url], to: deviceId)
+        vm.onSendFiles = { urls in service.sendFiles(urls, to: deviceId) }
+        vm.onFindPhone = { service.ringPhone(deviceId) }
+        vm.onLockDevice = { service.lockPhone(deviceId) }
+        vm.onUnpair = { service.unpair(deviceId: deviceId) }
+        vm.onExecuteCommand = { cmdId in
+            service.runCommandPlugin.startCommand(key: cmdId, connection: service.connectedDevices[deviceId])
         }
-        vm.onFindPhone = { [weak service] in
-            service?.ringPhone(deviceId)
-        }
-        vm.onLockDevice = { [weak service] in
-            service?.lockPhone(deviceId)
-        }
-        vm.onUnpair = { [weak service] in
-            service?.unpair(deviceId: deviceId)
-        }
-        vm.onExecuteCommand = { [weak service] cmdId in
-            if let conn = service?.connectedDevices[deviceId] {
-                service?.runCommandPlugin.startCommand(key: cmdId, connection: conn)
+        vm.onSaveCommand = { command in
+            let plugin = service.runCommandPlugin
+            if plugin.commands.contains(where: { $0.id == command.id }) {
+                plugin.updateCommand(command, connection: service.connectedDevices[deviceId])
+            } else {
+                plugin.addCommand(command, connection: service.connectedDevices[deviceId])
             }
         }
-        vm.onSendSMS = { [weak service] addr, text in
-            service?.smsPlugin.sendSMS(text: text, to: [addr], connection: connection)
+        vm.onDeleteCommand = { cmdId in
+            service.runCommandPlugin.removeCommand(id: cmdId, connection: service.connectedDevices[deviceId])
         }
-        vm.onSetVolume = { [weak service] val in
-            service?.setPhoneVolume(Int(val * 100), deviceId: deviceId)
+        vm.onSendSMS = { addresses, text, threadId in
+            guard let conn = service.connectedDevices[deviceId] else { return }
+            service.smsPlugin.sendSMS(text: text, to: addresses, threadId: threadId, connection: conn)
         }
-        vm.onMediaAction = { [weak service] action in
-            service?.mediaAction(action, deviceId: deviceId)
+        vm.onRefreshMessages = {
+            guard let conn = service.connectedDevices[deviceId] else { return }
+            service.smsPlugin.requestAllConversations(connection: conn)
+        }
+        vm.onOpenThread = { threadId in
+            guard let conn = service.connectedDevices[deviceId] else { return }
+            service.smsPlugin.requestConversation(threadId: threadId, connection: conn)
+        }
+        vm.onSetVolume = { val in service.setPhoneVolume(Int(val * 100), deviceId: deviceId) }
+        vm.onMediaAction = { action in service.mediaAction(action, deviceId: deviceId) }
+        vm.onReplyToNotification = { notification, text in
+            service.notificationPlugin.reply(to: notification, text: text)
+        }
+        vm.onDismissNotification = { notification in
+            service.notificationPlugin.dismiss(notification)
         }
     }
 
     private func updateDevicePluginStates() {
         guard !isMockMode else { return }
         let service = TetherService.shared
+        let threads = service.smsPlugin.conversations.values.sorted { $0.lastDate > $1.lastDate }
 
         for dev in connectedDevices {
             let id = dev.id
+            // Assign only on change: this runs after every plugin update (a busy
+            // SMS sync publishes hundreds of times) and each write re-renders.
             if let battery = service.batteryPlugin.deviceBatteries[id] {
-                dev.batteryPercent = battery.currentCharge
-                dev.isCharging = battery.isCharging
+                update(dev, \.batteryPercent, battery.currentCharge)
+                update(dev, \.isCharging, battery.isCharging)
             }
             if let signal = service.connectivityReportPlugin.signalStrength[id] {
-                dev.networkType = signal.networkType
-                dev.cellularSignalStrength = signal.strength
+                update(dev, \.networkType, signal.networkType)
+                update(dev, \.cellularSignalStrength, signal.strength)
             }
-            dev.transfers = service.sharePlugin.transfers.filter { $0.deviceId == id }
-            dev.smsThreads = Array(service.smsPlugin.conversations.values).sorted(by: { $0.id > $1.id })
-            dev.commands = service.runCommandPlugin.commands
+            update(dev, \.transfers, service.sharePlugin.transfers.filter { $0.deviceId == id })
+            update(dev, \.smsThreads, threads)
+            update(dev, \.commands, service.runCommandPlugin.commands)
+            update(dev, \.notifications, service.notificationPlugin.notifications[id] ?? [])
 
-            if let np = service.mediaControlPlugin.nowPlaying[id] {
-                dev.nowPlayingTitle = np.title
-                dev.nowPlayingArtist = np.artist
-                dev.nowPlayingIsPlaying = np.isPlaying
-            }
-            if let sink = service.remoteVolumePlugin.sinks[id]?.first {
-                dev.volume = Float(sink.fraction)
-                dev.isMuted = sink.muted
+            let nowPlaying = service.mediaControlPlugin.nowPlaying[id]
+            update(dev, \.nowPlayingTitle, nowPlaying?.title)
+            update(dev, \.nowPlayingArtist, nowPlaying?.artist)
+            update(dev, \.nowPlayingAlbum, nowPlaying?.album)
+            update(dev, \.nowPlayingIsPlaying, nowPlaying?.isPlaying ?? false)
+            dev.setAlbumArt(service.mediaControlPlugin.albumArt[id])
+
+            let sinks = service.remoteVolumePlugin.sinks[id]
+            if let sink = sinks?.first(where: { $0.enabled }) ?? sinks?.first {
+                update(dev, \.volume, Float(sink.fraction))
+                update(dev, \.isMuted, sink.muted)
             }
         }
     }
 
-    // Actions
+    private func update<Value: Equatable>(_ device: DeviceViewModel, _ keyPath: ReferenceWritableKeyPath<DeviceViewModel, Value>, _ value: Value) {
+        if device[keyPath: keyPath] != value { device[keyPath: keyPath] = value }
+    }
+
+    // MARK: - Actions
+
     public func acceptIncomingPairRequest() {
         TetherService.shared.acceptIncomingPairRequest()
         incomingPairRequest = nil
@@ -377,13 +310,13 @@ public final class TetherAppModel {
     }
 
     public func refreshDiscovery() {
+        guard !isMockMode else { return }
         TetherService.shared.refreshDiscovery()
         checkNotificationStatus()
     }
 
     public func addManualPeer(ip: String) {
         TetherService.shared.addManualPeer(ip: ip)
-        checkNotificationStatus()
     }
 
     public func checkNotificationStatus() {
@@ -396,26 +329,22 @@ public final class TetherAppModel {
     }
 
     public func openNotificationSettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") {
             NSWorkspace.shared.open(url)
         }
     }
+}
 
-    // MARK: - Mocks for Previews
+#if DEBUG
+// MARK: - Mocks for Previews
 
+extension TetherAppModel {
     public static func mock() -> TetherAppModel {
         let model = TetherAppModel(isMock: true)
         model.isRunning = true
-        model.connectedDevices = [
-            DeviceViewModel.mockConnectedPhone(),
-            DeviceViewModel.mockConnectedTablet()
-        ]
-        model.availableDevices = [
-            DeviceViewModel.mockAvailablePhone()
-        ]
-        model.offlineDevices = [
-            DeviceViewModel.mockOfflinePhone()
-        ]
+        model.connectedDevices = [.mockConnectedPhone(), .mockConnectedTablet()]
+        model.availableDevices = [.mockAvailablePhone()]
+        model.offlineDevices = [.mockOfflinePhone()]
         model.selectedDeviceId = "mock_phone"
         return model
     }
@@ -423,10 +352,6 @@ public final class TetherAppModel {
     public static func mockEmpty() -> TetherAppModel {
         let model = TetherAppModel(isMock: true)
         model.isRunning = true
-        model.connectedDevices = []
-        model.availableDevices = []
-        model.offlineDevices = []
-        model.selectedDeviceId = nil
         return model
     }
 
@@ -434,10 +359,11 @@ public final class TetherAppModel {
         let model = TetherAppModel.mock()
         model.incomingPairRequest = PairRequestViewModel(
             id: "pair_req_dev",
-            deviceName: "Pixel 9 Pro",
+            deviceName: "Nothing Phone (2)",
             deviceType: .phone,
-            fingerprint: "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99"
+            fingerprint: "a4:1f:9c:22:7e:d0:4b:88:13:6a:f2:e5:90:3c:7d:01:bb:48:c6:5e:09:d7:21:f3:6e:84:a0:55:cd:12:9b:3f"
         )
         return model
     }
 }
+#endif

@@ -2,61 +2,18 @@
 //  DeviceViewModel.swift
 //  Tether
 //
-//  Native macOS SwiftUI @Observable view model representing a device.
+//  Observable view state for one device. Instances are cached by device ID in
+//  TetherAppModel and updated in place, so view state survives model refreshes.
 //
 
 import SwiftUI
+import AppKit
 import Observation
-import UserNotifications
 
 public enum DeviceStatus: String, CaseIterable, Sendable {
     case connected = "Connected"
-    case available = "Available"
+    case available = "Nearby"
     case offline = "Offline"
-
-    public var systemImageName: String {
-        switch self {
-        case .connected: return "circle.fill"
-        case .available: return "antenna.radiowaves.left.and.right"
-        case .offline: return "circle"
-        }
-    }
-
-    public var color: Color {
-        switch self {
-        case .connected: return .green
-        case .available: return .blue
-        case .offline: return .secondary
-        }
-    }
-}
-
-public struct DeliveredNotificationItem: Identifiable, Hashable, Sendable {
-    public let id: String
-    public let title: String
-    public let body: String
-    public let date: Date
-    public let appName: String
-    public let replyId: String?
-    public let deviceId: String
-
-    public init(
-        id: String,
-        title: String,
-        body: String,
-        date: Date = Date(),
-        appName: String = "Phone",
-        replyId: String? = nil,
-        deviceId: String = ""
-    ) {
-        self.id = id
-        self.title = title
-        self.body = body
-        self.date = date
-        self.appName = appName
-        self.replyId = replyId
-        self.deviceId = deviceId
-    }
 }
 
 @Observable
@@ -66,39 +23,56 @@ public final class DeviceViewModel: Identifiable, Hashable {
     public var name: String
     public var deviceType: DeviceType
     public var status: DeviceStatus
+    public var lastSeen: Date?
+
     public var batteryPercent: Int?
     public var isCharging: Bool
     public var networkType: String?
     public var cellularSignalStrength: Int?
+
     public var volume: Float
     public var isMuted: Bool
     public var nowPlayingTitle: String?
     public var nowPlayingArtist: String?
+    public var nowPlayingAlbum: String?
     public var nowPlayingIsPlaying: Bool
+    /// Decoded once when the bytes change, never in a view body.
+    public private(set) var albumArt: NSImage?
+    @ObservationIgnored private var albumArtData: Data?
+
     public var transfers: [TransferItem]
     public var smsThreads: [SMSConversation]
     public var commands: [RemoteCommand]
-    public var notifications: [DeliveredNotificationItem]
+    public var notifications: [PhoneNotification]
+
+    /// True between asking a nearby device to pair and it answering.
+    public var isAwaitingPairing = false
 
     // Action handlers injected by TetherAppModel or mocked
     public var onPing: (() -> Void)?
     public var onSendClipboard: (() -> Void)?
-    public var onSendFile: ((URL) -> Void)?
+    public var onSendFiles: (([URL]) -> Void)?
     public var onFindPhone: (() -> Void)?
     public var onLockDevice: (() -> Void)?
     public var onPair: (() -> Void)?
     public var onUnpair: (() -> Void)?
     public var onExecuteCommand: ((String) -> Void)?
-    public var onSendSMS: ((String, String) -> Void)?
+    public var onSaveCommand: ((RemoteCommand) -> Void)?
+    public var onDeleteCommand: ((String) -> Void)?
+    public var onSendSMS: (([String], String, Int64?) -> Void)?
+    public var onRefreshMessages: (() -> Void)?
+    public var onOpenThread: ((Int64) -> Void)?
     public var onSetVolume: ((Float) -> Void)?
     public var onMediaAction: ((String) -> Void)?
-    public var onDismissNotification: ((String) -> Void)?
+    public var onReplyToNotification: ((PhoneNotification, String) -> Void)?
+    public var onDismissNotification: ((PhoneNotification) -> Void)?
 
     public init(
         id: String,
         name: String,
         deviceType: DeviceType = .phone,
         status: DeviceStatus = .connected,
+        lastSeen: Date? = nil,
         batteryPercent: Int? = nil,
         isCharging: Bool = false,
         networkType: String? = nil,
@@ -107,16 +81,18 @@ public final class DeviceViewModel: Identifiable, Hashable {
         isMuted: Bool = false,
         nowPlayingTitle: String? = nil,
         nowPlayingArtist: String? = nil,
+        nowPlayingAlbum: String? = nil,
         nowPlayingIsPlaying: Bool = false,
         transfers: [TransferItem] = [],
         smsThreads: [SMSConversation] = [],
         commands: [RemoteCommand] = [],
-        notifications: [DeliveredNotificationItem] = []
+        notifications: [PhoneNotification] = []
     ) {
         self.id = id
         self.name = name
         self.deviceType = deviceType
         self.status = status
+        self.lastSeen = lastSeen
         self.batteryPercent = batteryPercent
         self.isCharging = isCharging
         self.networkType = networkType
@@ -125,6 +101,7 @@ public final class DeviceViewModel: Identifiable, Hashable {
         self.isMuted = isMuted
         self.nowPlayingTitle = nowPlayingTitle
         self.nowPlayingArtist = nowPlayingArtist
+        self.nowPlayingAlbum = nowPlayingAlbum
         self.nowPlayingIsPlaying = nowPlayingIsPlaying
         self.transfers = transfers
         self.smsThreads = smsThreads
@@ -132,116 +109,128 @@ public final class DeviceViewModel: Identifiable, Hashable {
         self.notifications = notifications
     }
 
-    public static func == (lhs: DeviceViewModel, rhs: DeviceViewModel) -> Bool {
+    public nonisolated static func == (lhs: DeviceViewModel, rhs: DeviceViewModel) -> Bool {
         lhs.id == rhs.id
     }
 
-    public func hash(into hasher: inout Hasher) {
+    public nonisolated func hash(into hasher: inout Hasher) {
         hasher.combine(id)
+    }
+
+    public var isConnected: Bool { status == .connected }
+
+    func setAlbumArt(_ data: Data?) {
+        guard data != albumArtData else { return }
+        albumArtData = data
+        albumArt = data.flatMap(NSImage.init(data:))
+    }
+
+    public var hasNowPlaying: Bool {
+        !(nowPlayingTitle ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    public var activeTransferCount: Int {
+        transfers.filter { $0.status == .transferring }.count
+    }
+
+    /// One-line status used under the device name in lists.
+    public var statusLine: String {
+        switch status {
+        case .connected:
+            var parts = ["Connected"]
+            if let batteryPercent { parts.append("\(batteryPercent)%") }
+            return parts.joined(separator: " · ")
+        case .available:
+            return isAwaitingPairing ? "Waiting for phone…" : "Ready to pair"
+        case .offline:
+            if let lastSeen {
+                return "Last seen \(lastSeen.formatted(.relative(presentation: .named)))"
+            }
+            return "Not nearby"
+        }
     }
 
     // Actions
     public func ping() { onPing?() }
     public func sendClipboard() { onSendClipboard?() }
-    public func sendFile(url: URL) { onSendFile?(url) }
+    public func sendFiles(_ urls: [URL]) { onSendFiles?(urls) }
     public func findMyPhone() { onFindPhone?() }
     public func lockDevice() { onLockDevice?() }
-    public func pair() { onPair?() }
+    public func pair() {
+        isAwaitingPairing = true
+        onPair?()
+    }
     public func unpair() { onUnpair?() }
     public func executeCommand(id: String) { onExecuteCommand?(id) }
-    public func sendSMS(to address: String, message: String) { onSendSMS?(address, message) }
+    public func saveCommand(_ command: RemoteCommand) { onSaveCommand?(command) }
+    public func deleteCommand(id: String) { onDeleteCommand?(id) }
+    public func sendSMS(to addresses: [String], message: String, threadId: Int64?) {
+        onSendSMS?(addresses, message, threadId)
+    }
+    public func refreshMessages() { onRefreshMessages?() }
+    public func openThread(_ threadId: Int64) { onOpenThread?(threadId) }
     public func setVolume(_ val: Float) { onSetVolume?(val) }
-    public func playPauseMedia() { onMediaAction?("playPause") }
-    public func nextMedia() { onMediaAction?("next") }
-    public func previousMedia() { onMediaAction?("previous") }
-    public func dismissNotification(id: String) { onDismissNotification?(id) }
+    public func playPauseMedia() { onMediaAction?("PlayPause") }
+    public func nextMedia() { onMediaAction?("Next") }
+    public func previousMedia() { onMediaAction?("Previous") }
+    public func reply(to notification: PhoneNotification, text: String) { onReplyToNotification?(notification, text) }
+    public func dismiss(_ notification: PhoneNotification) { onDismissNotification?(notification) }
+}
 
-    // MARK: - Mocks for Previews
+#if DEBUG
+// MARK: - Mocks for Previews
 
+extension DeviceViewModel {
     public static func mockConnectedPhone() -> DeviceViewModel {
-        let sampleMessages = [
-            SMSMessage(body: "Hey! Did the file transfer arrive?", addresses: ["+15551234567"], date: Date().addingTimeInterval(-180), type: 1, threadId: 101, read: true),
-            SMSMessage(body: "Yes, received on MacBook Air.", addresses: ["+15551234567"], date: Date().addingTimeInterval(-60), type: 2, threadId: 101, read: true)
-        ]
-        let sampleThread = SMSConversation(threadId: 101, addresses: ["Alex Smith"], messages: sampleMessages)
-
-        let sampleTransfer = TransferItem(
-            deviceId: "mock_phone",
-            deviceName: "Pixel 9 Pro",
-            filename: "QuarterlyReport.pdf",
-            totalBytes: 15_420_000,
-            transferredBytes: 15_420_000,
-            direction: .incoming,
-            status: .completed,
-            progress: 1.0,
-            speedBytesPerSec: 0,
-            timestamp: Date().addingTimeInterval(-300)
-        )
-
-        let sampleNotif = DeliveredNotificationItem(
-            id: "notif_1",
-            title: "Telegram: Alex Smith",
-            body: "Are we meeting at 4 PM today?",
-            date: Date().addingTimeInterval(-120),
-            appName: "Telegram",
-            replyId: "reply_1",
-            deviceId: "mock_phone"
-        )
+        let now = Date()
+        let alex = SMSConversation(threadId: 101, addresses: ["+1 555 123 4567"], messages: [
+            SMSMessage(body: "Did the slides come through?", addresses: ["+1 555 123 4567"], date: now.addingTimeInterval(-3600 * 26), type: 1, threadId: 101, read: true),
+            SMSMessage(body: "Yep, opening them now", addresses: ["+1 555 123 4567"], date: now.addingTimeInterval(-3600 * 25), type: 2, threadId: 101, read: true),
+            SMSMessage(body: "Are we still on for 4?", addresses: ["+1 555 123 4567"], date: now.addingTimeInterval(-240), type: 1, threadId: 101, read: false),
+            SMSMessage(body: "Running ten minutes late, save me a seat", addresses: ["+1 555 123 4567"], date: now.addingTimeInterval(-60), type: 2, threadId: 101, read: true)
+        ])
+        let bank = SMSConversation(threadId: 102, addresses: ["HDFCBK"], messages: [
+            SMSMessage(body: "Your OTP for login is 482913. Do not share it with anyone.", addresses: ["HDFCBK"], date: now.addingTimeInterval(-7200), type: 1, threadId: 102, read: true)
+        ])
 
         return DeviceViewModel(
             id: "mock_phone",
             name: "Pixel 9 Pro",
             deviceType: .phone,
             status: .connected,
-            batteryPercent: 88,
+            batteryPercent: 82,
             isCharging: true,
-            networkType: "Wi-Fi 6",
-            cellularSignalStrength: 4,
-            volume: 0.75,
-            isMuted: false,
+            networkType: "5G",
+            cellularSignalStrength: 3,
+            volume: 0.6,
             nowPlayingTitle: "Midnight City",
             nowPlayingArtist: "M83",
+            nowPlayingAlbum: "Hurry Up, We're Dreaming",
             nowPlayingIsPlaying: true,
-            transfers: [sampleTransfer],
-            smsThreads: [sampleThread],
+            transfers: [
+                TransferItem(deviceId: "mock_phone", deviceName: "Pixel 9 Pro", filename: "IMG_2041.HEIC", totalBytes: 3_420_000, transferredBytes: 2_100_000, direction: .incoming, status: .transferring, progress: 0.61),
+                TransferItem(deviceId: "mock_phone", deviceName: "Pixel 9 Pro", filename: "Quarterly Report.pdf", totalBytes: 15_420_000, transferredBytes: 15_420_000, direction: .outgoing, status: .completed, progress: 1, timestamp: now.addingTimeInterval(-900)),
+                TransferItem(deviceId: "mock_phone", deviceName: "Pixel 9 Pro", filename: "recording.m4a", totalBytes: 820_000, direction: .incoming, status: .failed("Connection lost"), timestamp: now.addingTimeInterval(-4000))
+            ],
+            smsThreads: [alex, bank],
             commands: RemoteCommand.defaultCommands,
-            notifications: [sampleNotif]
+            notifications: [
+                PhoneNotification(id: "n1", deviceId: "mock_phone", appName: "WhatsApp", title: "Alex Smith", text: "Are we meeting at 4 PM today?", date: now.addingTimeInterval(-120), replyId: "r1", isDismissable: true),
+                PhoneNotification(id: "n2", deviceId: "mock_phone", appName: "Gmail", title: "Your order has shipped", text: "Arriving Thursday. Track your package for live updates.", date: now.addingTimeInterval(-1800), replyId: nil, isDismissable: true)
+            ]
         )
     }
 
     public static func mockConnectedTablet() -> DeviceViewModel {
-        DeviceViewModel(
-            id: "mock_tablet",
-            name: "Galaxy Tab S9",
-            deviceType: .tablet,
-            status: .connected,
-            batteryPercent: 62,
-            isCharging: false,
-            networkType: "Wi-Fi",
-            cellularSignalStrength: nil,
-            volume: 0.4
-        )
+        DeviceViewModel(id: "mock_tablet", name: "Galaxy Tab S9", deviceType: .tablet, status: .connected, batteryPercent: 47, networkType: "Wi-Fi")
     }
 
     public static func mockAvailablePhone() -> DeviceViewModel {
-        DeviceViewModel(
-            id: "mock_available",
-            name: "Nothing Phone (2)",
-            deviceType: .phone,
-            status: .available,
-            batteryPercent: nil,
-            isCharging: false
-        )
+        DeviceViewModel(id: "mock_available", name: "Nothing Phone (2)", deviceType: .phone, status: .available)
     }
 
     public static func mockOfflinePhone() -> DeviceViewModel {
-        DeviceViewModel(
-            id: "mock_offline",
-            name: "motorola edge 50",
-            deviceType: .phone,
-            status: .offline,
-            batteryPercent: 45,
-            isCharging: false
-        )
+        DeviceViewModel(id: "mock_offline", name: "OnePlus 12", deviceType: .phone, status: .offline, lastSeen: Date().addingTimeInterval(-3600 * 5))
     }
 }
+#endif

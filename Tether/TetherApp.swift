@@ -7,9 +7,19 @@ import SwiftUI
 
 @main
 struct TetherApp: App {
-    @State private var appModel = TetherAppModel.shared
+    @State private var appModel: TetherAppModel
 
     init() {
+        #if DEBUG
+        // `-TetherDemoData` fills the UI with sample devices for screenshots and
+        // design work, without touching the network.
+        if ProcessInfo.processInfo.arguments.contains("-TetherDemoData") {
+            _appModel = State(initialValue: .mock())
+            return
+        }
+        #endif
+
+        _appModel = State(initialValue: .shared)
         // Eagerly initialize identity on main thread
         _ = DeviceIdentity.shared
         // Start background discovery and network services
@@ -19,16 +29,23 @@ struct TetherApp: App {
     var body: some Scene {
         MenuBarExtra("Tether", image: appModel.statusMenuBarImageName) {
             MenuBarView(appModel: appModel)
+                .tetherMotionPreference()
         }
         .menuBarExtraStyle(.window)
 
-        Settings {
-            SettingsView()
+        Window("Tether", id: "main") {
+            MainWindowView(appModel: appModel)
+                .tetherMotionPreference()
+        }
+        .defaultSize(width: 1040, height: 700)
+        .windowToolbarStyle(.unified)
+        .commands {
+            TetherCommands(appModel: appModel)
         }
 
-        WindowGroup(id: "main") {
-            MainWindowView(appModel: appModel)
+        Settings {
+            SettingsView(viewModel: .shared)
+                .tetherMotionPreference()
         }
-        .defaultSize(width: 860, height: 580)
     }
 }

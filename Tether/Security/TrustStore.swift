@@ -18,40 +18,27 @@ public final class TrustStore: ObservableObject, @unchecked Sendable {
         loadDevices()
     }
 
+    /// Build 1.2 shipped with the author's own phone pre-trusted on every install.
+    /// It is removed on load so nobody trusts a device they never paired.
+    private static let removedPreloadedDeviceIds: Set<String> = ["5bbcb3e152d34b9597997d39ca4587ce"]
+
     private func loadDevices() {
-        if let data = UserDefaults.standard.data(forKey: userDefaultsKey),
-           let list = try? JSONDecoder().decode([PairedDevice].self, from: data),
-           !list.isEmpty {
-            var dict: [String: PairedDevice] = [:]
-            for device in list {
-                dict[device.deviceId] = device
-            }
-            self.pairedDevices = dict
-            return
-        }
+        let stored = Self.decode(key: userDefaultsKey) ?? Self.decode(key: "kdeconnect_paired_devices") ?? []
+        let kept = stored.filter { !Self.removedPreloadedDeviceIds.contains($0.deviceId) }
 
-        if let oldData = UserDefaults.standard.data(forKey: "kdeconnect_paired_devices"),
-           let list = try? JSONDecoder().decode([PairedDevice].self, from: oldData),
-           !list.isEmpty {
-            var dict: [String: PairedDevice] = [:]
-            for device in list {
-                dict[device.deviceId] = device
-            }
-            self.pairedDevices = dict
+        self.pairedDevices = Dictionary(kept.map { ($0.deviceId, $0) }, uniquingKeysWith: { _, latest in latest })
+
+        // Persist when migrating from the legacy key or when a preloaded entry was dropped.
+        if kept.count != stored.count || UserDefaults.standard.data(forKey: userDefaultsKey) == nil {
             saveDevices()
-            return
         }
+    }
 
-        // Preload user's paired phone so re-pairing is not required
-        let knownPhone = PairedDevice(
-            deviceId: "5bbcb3e152d34b9597997d39ca4587ce",
-            deviceName: "motorola edge 50",
-            deviceType: .phone,
-            certificateFingerprint: "94:96:86:d6:2b:4f:ee:dd:9c:f8:97:69:a4:f1:b8:40:d5:15:2f:b8:2e:76:ea:f6:08:98:c2:aa:46:af:18:87",
-            certificatePEM: nil
-        )
-        self.pairedDevices = [knownPhone.deviceId: knownPhone]
-        saveDevices()
+    private static func decode(key: String) -> [PairedDevice]? {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let list = try? JSONDecoder().decode([PairedDevice].self, from: data),
+              !list.isEmpty else { return nil }
+        return list
     }
 
     private func saveDevices() {

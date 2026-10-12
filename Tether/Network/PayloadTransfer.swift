@@ -26,14 +26,9 @@ public enum PayloadPort {
     /// Upstream waits 30s for the receiver to connect before giving up.
     public static let acceptTimeout: TimeInterval = 30
 
-    /// Budget for the TLS handshake.
-    ///
-    /// Deliberately large: the first server-side handshake in a fresh process can
-    /// spend ~25s evaluating the peer's self-signed certificate before completing.
-    /// In the running app the identity and trust state are already warm from
-    /// pairing, so a payload handshake normally finishes in milliseconds — this is
-    /// purely a safety net for the cold path.
-    public static let handshakeTimeout: TimeInterval = 60
+    /// Budget for the TLS handshake. Handshakes take milliseconds now that the
+    /// identity is held in memory; this only bounds a peer that stops responding.
+    public static let handshakeTimeout: TimeInterval = 20
 
     /// Maximum time with no forward progress during the byte stream itself.
     public static let ioStallTimeout: TimeInterval = 60
@@ -51,6 +46,8 @@ public enum PayloadError: Error, LocalizedError {
     case socketFailure(Int32)
     case peerClosedEarly(expected: Int64, received: Int64)
     case fileUnreadable(URL)
+    case fileUnwritable(URL)
+    case certificateMismatch
     case cancelled
 
     public var errorDescription: String? {
@@ -67,6 +64,10 @@ public enum PayloadError: Error, LocalizedError {
             return "Peer closed the payload stream early: expected \(expected) bytes, received \(received)."
         case .fileUnreadable(let url):
             return "Could not read file for transfer: \(url.lastPathComponent)"
+        case .fileUnwritable(let url):
+            return "Could not write received data to \(url.lastPathComponent)."
+        case .certificateMismatch:
+            return "The payload peer presented a different certificate than the paired device."
         case .cancelled:
             return "Payload transfer cancelled."
         }
@@ -184,25 +185,22 @@ enum PayloadTLS {
     /// The first `SSLHandshake` on a cold process can spend several seconds
     /// resolving the signing identity in the keychain before reporting
     /// `errSSLClientCertRequested`, so the deadline here must be generous.
-    static func handshake(_ ctx: SSLContext, deadline: Date, label: String) -> OSStatus {
-        var status: OSStatus = errSSLWouldBlock
-        var iterations = 0
-        while status == errSSLWouldBlock
-            || status == errSSLPeerAuthCompleted
-            || status == errSSLClientCertRequested {
-            if Date() > deadline {
-                TetherLog("[PayloadTLS] \(label) handshake exceeded deadline after \(iterations) iterations (last status \(status))")
-                return errSSLWouldBlock
-            }
-            status = SSLHandshake(ctx)
-            iterations += 1
-            if iterations <= 8 {
-                TetherLog("[PayloadTLS] \(label) SSLHandshake #\(iterations) -> \(status)")
-            }
-            if status == errSSLWouldBlock { usleep(2000) }
-        }
-        TetherLog("[PayloadTLS] \(label) handshake ok after \(iterations) iterations")
+    static func handshake(_ ctx: SSLContext, fd: Int32, deadline: Date, label: String) -> OSStatus {
+        let status = SocketTLS.handshake(ctx, fd: fd, deadline: deadline)
+        TetherLog("[PayloadTLS] \(label) handshake finished with status \(status)")
         return status
+    }
+
+    /// The payload socket must be held by the same device we are paired with.
+    /// Without this, anyone who can reach the port could feed or receive the data.
+    static func verifyPeer(_ ctx: SSLContext, expected: String?, label: String) -> Bool {
+        guard let expected else { return true }
+        let actual = SocketTLS.peerFingerprint(ctx)
+        guard SocketTLS.fingerprintsMatch(actual, expected) else {
+            TetherLog("[PayloadTLS] \(label) peer certificate \(actual ?? "none") does not match paired device")
+            return false
+        }
+        return true
     }
 
     static func makeContext(isServer: Bool, fd: Int32) -> SSLContext? {
@@ -226,41 +224,6 @@ enum PayloadTLS {
             SSLSetSessionOption(ctx, .breakOnCertRequested, true)
         }
         return ctx
-    }
-
-    /// Writes the whole buffer, re-driving on would-block until the deadline.
-    ///
-    /// SecureTransport routinely reports `errSSLWouldBlock` *together with* a
-    /// positive byte count, so a fully-drained buffer is success regardless of
-    /// the status that accompanied the final write.
-    static func writeAll(_ ctx: SSLContext, _ data: Data, deadline: Date) -> OSStatus {
-        var status: OSStatus = noErr
-        data.withUnsafeBytes { raw in
-            guard var ptr = raw.baseAddress else { return }
-            var remaining = data.count
-            while remaining > 0 {
-                if Date() > deadline {
-                    status = errSSLWouldBlock
-                    return
-                }
-                var written = 0
-                status = SSLWrite(ctx, ptr, remaining, &written)
-                if written > 0 {
-                    remaining -= written
-                    ptr = ptr.advanced(by: written)
-                }
-                if remaining == 0 {
-                    status = noErr
-                    return
-                }
-                if status == errSSLWouldBlock {
-                    usleep(2000)
-                    continue
-                }
-                if status != noErr { return }
-            }
-        }
-        return status
     }
 }
 
@@ -300,6 +263,7 @@ public final class PayloadUploader: @unchecked Sendable {
     ///   to connect to and the transfer will time out.
     public func start(
         fileURL: URL,
+        expectedPeerFingerprint: String? = nil,
         onReady: @escaping (Offer) -> Void,
         onProgress: @escaping (Double) -> Void,
         onComplete: @escaping (Result<Void, Error>) -> Void
@@ -338,7 +302,13 @@ public final class PayloadUploader: @unchecked Sendable {
         onReady(Offer(port: chosenPort, size: size))
 
         queue.async { [weak self] in
-            self?.acceptAndStream(fileURL: fileURL, size: size, onProgress: onProgress, onComplete: onComplete)
+            self?.acceptAndStream(
+                fileURL: fileURL,
+                size: size,
+                expectedPeerFingerprint: expectedPeerFingerprint,
+                onProgress: onProgress,
+                onComplete: onComplete
+            )
         }
     }
 
@@ -371,6 +341,7 @@ public final class PayloadUploader: @unchecked Sendable {
     private func acceptAndStream(
         fileURL: URL,
         size: Int64,
+        expectedPeerFingerprint: String?,
         onProgress: @escaping (Double) -> Void,
         onComplete: @escaping (Result<Void, Error>) -> Void
     ) {
@@ -422,11 +393,16 @@ public final class PayloadUploader: @unchecked Sendable {
 
         let status = PayloadTLS.handshake(
             ctx,
+            fd: clientFD,
             deadline: Date().addingTimeInterval(PayloadPort.handshakeTimeout),
             label: "server"
         )
         guard status == noErr else {
             finish(with: .failure(PayloadError.tlsHandshakeFailed(status)), onComplete: onComplete)
+            return
+        }
+        guard PayloadTLS.verifyPeer(ctx, expected: expectedPeerFingerprint, label: "server") else {
+            finish(with: .failure(PayloadError.certificateMismatch), onComplete: onComplete)
             return
         }
 
@@ -448,8 +424,9 @@ public final class PayloadUploader: @unchecked Sendable {
             let want = Int(min(Int64(PayloadPort.chunkSize), remaining))
             guard let chunk = try? handle.read(upToCount: want), !chunk.isEmpty else { break }
 
-            let writeStatus = PayloadTLS.writeAll(
+            let writeStatus = SocketTLS.writeAll(
                 ctx,
+                fd: clientFD,
                 chunk,
                 deadline: Date().addingTimeInterval(PayloadPort.ioStallTimeout)
             )
@@ -518,21 +495,44 @@ public final class PayloadUploader: @unchecked Sendable {
 
 public enum PayloadDownloader {
 
-    /// Connects to the peer's payload server and reads `size` bytes.
+    /// Where in-flight downloads are written before a plugin claims them.
+    public static var incomingDirectory: URL {
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        return caches.appendingPathComponent("TetherIncoming", isDirectory: true)
+    }
+
+    /// Connects to the peer's payload server and streams `size` bytes to a
+    /// temporary file, so memory stays flat no matter how large the file is.
     ///
     /// - Parameters:
     ///   - host: Address of the peer that announced the transfer.
     ///   - port: Port taken from `payloadTransferInfo["port"]`.
     ///   - size: Expected byte count from the packet's `payloadSize`.
+    ///   - expectedPeerFingerprint: Pinned certificate of the paired device; the
+    ///     transfer is refused if the payload server presents anything else.
+    ///   - completion: Receives the temporary file. The caller owns it and must
+    ///     move or delete it.
     public static func download(
         host: String,
         port: UInt16,
         size: Int64,
-        onProgress: @escaping (Double) -> Void = { _ in },
-        completion: @escaping (Result<Data, Error>) -> Void
+        expectedPeerFingerprint: String?,
+        onProgress: @escaping @Sendable (Double) -> Void = { _ in },
+        completion: @escaping @Sendable (Result<URL, Error>) -> Void
     ) {
         DispatchQueue.global(qos: .userInitiated).async {
-            let result = performDownload(host: host, port: port, size: size, onProgress: onProgress)
+            let destination = incomingDirectory.appendingPathComponent(UUID().uuidString, isDirectory: false)
+            let result = performDownload(
+                host: host,
+                port: port,
+                size: size,
+                expectedPeerFingerprint: expectedPeerFingerprint,
+                destination: destination,
+                onProgress: onProgress
+            )
+            if case .failure = result {
+                try? FileManager.default.removeItem(at: destination)
+            }
             completion(result)
         }
     }
@@ -541,8 +541,10 @@ public enum PayloadDownloader {
         host: String,
         port: UInt16,
         size: Int64,
+        expectedPeerFingerprint: String?,
+        destination: URL,
         onProgress: @escaping (Double) -> Void
-    ) -> Result<Data, Error> {
+    ) -> Result<URL, Error> {
         let fd = socket(AF_INET, SOCK_STREAM, 0)
         guard fd >= 0 else { return .failure(PayloadError.socketFailure(errno)) }
         defer { Darwin.close(fd) }
@@ -562,9 +564,7 @@ public enum PayloadDownloader {
                 return .failure(PayloadError.socketFailure(errno))
             }
 
-            var pollFd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
-            let pollResult = Darwin.poll(&pollFd, 1, Int32(PayloadPort.acceptTimeout * 1000))
-            guard pollResult > 0 else {
+            guard SocketTLS.wait(fd: fd, for: POLLOUT, until: Date().addingTimeInterval(PayloadPort.acceptTimeout)) else {
                 return .failure(PayloadError.connectionTimeout)
             }
 
@@ -586,6 +586,7 @@ public enum PayloadDownloader {
 
         let status = PayloadTLS.handshake(
             ctx,
+            fd: fd,
             deadline: Date().addingTimeInterval(PayloadPort.handshakeTimeout),
             label: "client"
         )
@@ -593,49 +594,70 @@ public enum PayloadDownloader {
             TetherLog("[PayloadDownloader] TLS handshake failed with status \(status)")
             return .failure(PayloadError.tlsHandshakeFailed(status))
         }
+        guard PayloadTLS.verifyPeer(ctx, expected: expectedPeerFingerprint, label: "client") else {
+            return .failure(PayloadError.certificateMismatch)
+        }
 
-        var received = Data()
-        if size > 0 { received.reserveCapacity(Int(min(size, 32 * 1024 * 1024))) }
+        let fm = FileManager.default
+        try? fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        guard fm.createFile(atPath: destination.path, contents: nil),
+              let output = try? FileHandle(forWritingTo: destination) else {
+            return .failure(PayloadError.fileUnwritable(destination))
+        }
+        defer { try? output.close() }
 
+        var received: Int64 = 0
         var buffer = [UInt8](repeating: 0, count: PayloadPort.chunkSize)
         var lastProgress = Date()
+        var lastReported = 0.0
 
-        while Int64(received.count) < size {
+        while received < size {
             var bytesRead = 0
-            let remaining = Int(min(Int64(buffer.count), size - Int64(received.count)))
+            let remaining = Int(min(Int64(buffer.count), size - received))
             let readStatus = SSLRead(ctx, &buffer, remaining, &bytesRead)
 
             if bytesRead > 0 {
-                received.append(buffer, count: bytesRead)
+                do {
+                    try output.write(contentsOf: Data(bytes: buffer, count: bytesRead))
+                } catch {
+                    return .failure(PayloadError.fileUnwritable(destination))
+                }
+                received += Int64(bytesRead)
                 lastProgress = Date()
-                onProgress(Double(received.count) / Double(size))
+
+                // Throttle progress callbacks to whole percents.
+                let fraction = Double(received) / Double(size)
+                if fraction - lastReported >= 0.01 || received == size {
+                    lastReported = fraction
+                    onProgress(fraction)
+                }
                 continue
             }
 
             switch readStatus {
             case errSSLWouldBlock, errSSLPeerAuthCompleted:
-                if Date().timeIntervalSince(lastProgress) > PayloadPort.ioStallTimeout {
-                    TetherLog("[PayloadDownloader] Stalled after \(received.count)/\(size) bytes")
+                let stallDeadline = lastProgress.addingTimeInterval(PayloadPort.ioStallTimeout)
+                guard SocketTLS.wait(fd: fd, for: POLLIN, until: stallDeadline) else {
+                    TetherLog("[PayloadDownloader] Stalled after \(received)/\(size) bytes")
                     return .failure(PayloadError.connectionTimeout)
                 }
-                usleep(2000)
                 continue
             case noErr:
                 break
             default:
                 TetherLog("[PayloadDownloader] Read failed with status \(readStatus)")
-                return .failure(PayloadError.peerClosedEarly(expected: size, received: Int64(received.count)))
+                return .failure(PayloadError.peerClosedEarly(expected: size, received: received))
             }
             break
         }
 
-        guard Int64(received.count) == size else {
-            TetherLog("[PayloadDownloader] Incomplete payload: \(received.count)/\(size) bytes")
-            return .failure(PayloadError.peerClosedEarly(expected: size, received: Int64(received.count)))
+        guard received == size else {
+            TetherLog("[PayloadDownloader] Incomplete payload: \(received)/\(size) bytes")
+            return .failure(PayloadError.peerClosedEarly(expected: size, received: received))
         }
 
-        TetherLog("[PayloadDownloader] Received \(received.count) bytes from \(host):\(port)")
-        return .success(received)
+        TetherLog("[PayloadDownloader] Received \(received) bytes from \(host):\(port)")
+        return .success(destination)
     }
 
     private static func makeSockaddr(host: String, port: UInt16) -> (sockaddr_in, socklen_t) {

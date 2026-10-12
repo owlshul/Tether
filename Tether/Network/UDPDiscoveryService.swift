@@ -165,7 +165,7 @@ public final class UDPDiscoveryService: @unchecked Sendable {
         delegate?.didDiscoverDevice(host: senderIP, port: tcpPort, deviceInfo: deviceInfo)
     }
 
-    public func broadcastPresence(tcpPort: Int = 1716, sweepSubnet: Bool = false) {
+    public func broadcastPresence(tcpPort: Int? = nil, sweepSubnet: Bool = false) {
         let packet = DeviceIdentity.shared.toDeviceInfo(tcpPort: tcpPort).toUdpDiscoveryPacket()
         guard let data = try? packet.serialize() else { return }
 
@@ -182,7 +182,7 @@ public final class UDPDiscoveryService: @unchecked Sendable {
 
     private var lastDirectPresenceSent: [String: Date] = [:]
 
-    public func sendDirectPresence(to host: String, tcpPort: Int = 1716) {
+    public func sendDirectPresence(to host: String, tcpPort: Int? = nil) {
         let last = lastDirectPresenceSent[host] ?? .distantPast
         guard Date().timeIntervalSince(last) > 10 else { return }
         lastDirectPresenceSent[host] = Date()

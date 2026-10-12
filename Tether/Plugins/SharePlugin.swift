@@ -48,8 +48,7 @@ public final class SharePlugin: ObservableObject, TetherPlugin, @unchecked Senda
 
         // 3. File payload announcement
         if packet.payloadTransferInfo != nil, let size = packet.payloadSize {
-            let rawFilename = packet.string(for: "filename") ?? "file"
-            let cleanFilename = URL(fileURLWithPath: rawFilename).lastPathComponent
+            let cleanFilename = SafeFilename.sanitize(packet.string(for: "filename"))
 
             let item = TransferItem(
                 deviceId: deviceId,
@@ -74,35 +73,49 @@ public final class SharePlugin: ObservableObject, TetherPlugin, @unchecked Senda
         }
     }
 
-    public func handlePayload(connection: DeviceConnection, packet: NetworkPacket, data: Data) {
-        let deviceName = connection.peerDeviceInfo?.deviceName ?? "Device"
-
-        var matchingItem: TransferItem?
-        lock.withLock {
-            matchingItem = self.pendingIncomingItems.removeValue(forKey: packet.id)
+    public func handlePayloadProgress(connection: DeviceConnection, packet: NetworkPacket, fraction: Double) {
+        guard let itemId = lock.withLock({ pendingIncomingItems[packet.id]?.id }) else { return }
+        DispatchQueue.main.async {
+            guard let index = self.transfers.firstIndex(where: { $0.id == itemId }) else { return }
+            self.transfers[index].progress = fraction
+            self.transfers[index].transferredBytes = Int64(Double(self.transfers[index].totalBytes) * fraction)
         }
+    }
 
-        let filename = matchingItem?.filename ?? (packet.string(for: "filename") ?? "ReceivedFile")
-        let destinationURL = uniqueDownloadsURL(for: filename)
+    public func handlePayloadFailure(connection: DeviceConnection, packet: NetworkPacket, error: Error) {
+        guard let item = lock.withLock({ pendingIncomingItems.removeValue(forKey: packet.id) }) else { return }
+        DispatchQueue.main.async {
+            guard let index = self.transfers.firstIndex(where: { $0.id == item.id }) else { return }
+            self.transfers[index].status = .failed(error.localizedDescription)
+        }
+    }
+
+    public func handlePayload(connection: DeviceConnection, packet: NetworkPacket, fileURL payloadURL: URL) {
+        let deviceName = connection.peerDeviceInfo?.deviceName ?? "Device"
+        let matchingItem = lock.withLock { pendingIncomingItems.removeValue(forKey: packet.id) }
+
+        let filename = matchingItem?.filename ?? SafeFilename.sanitize(packet.string(for: "filename"))
+        let downloadsDir = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
+        let destinationURL = SafeFilename.uniqueURL(in: downloadsDir, for: filename)
+        let itemId = matchingItem?.id
 
         do {
-            try data.write(to: destinationURL, options: .atomic)
-            TetherLog("[SharePlugin] Successfully saved \(data.count) bytes to \(destinationURL.path)")
+            try FileManager.default.moveItem(at: payloadURL, to: destinationURL)
+            let size = (try? FileManager.default.attributesOfItem(atPath: destinationURL.path)[.size] as? NSNumber)?.int64Value ?? 0
+            TetherLog("[SharePlugin] Saved \(size) bytes to \(destinationURL.path)")
 
-            let itemId = matchingItem?.id
             DispatchQueue.main.async {
                 if let index = self.transfers.firstIndex(where: { $0.id == itemId }) {
                     self.transfers[index].status = .completed
                     self.transfers[index].progress = 1.0
-                    self.transfers[index].transferredBytes = Int64(data.count)
+                    self.transfers[index].transferredBytes = size
                     self.transfers[index].localURL = destinationURL
                 }
             }
 
-            postFileReceivedNotification(filename: filename, from: deviceName, fileURL: destinationURL)
+            postFileReceivedNotification(filename: destinationURL.lastPathComponent, from: deviceName, fileURL: destinationURL)
         } catch {
-            TetherLog("[SharePlugin] Failed to write incoming file to \(destinationURL.path): \(error)")
-            let itemId = matchingItem?.id
+            TetherLog("[SharePlugin] Failed to move incoming file to \(destinationURL.path): \(error)")
             DispatchQueue.main.async {
                 if let index = self.transfers.firstIndex(where: { $0.id == itemId }) {
                     self.transfers[index].status = .failed(error.localizedDescription)
@@ -160,6 +173,7 @@ public final class SharePlugin: ObservableObject, TetherPlugin, @unchecked Senda
 
         uploader.start(
             fileURL: url,
+            expectedPeerFingerprint: connection.peerCertificateFingerprint,
             onReady: { offer in
                 // Build the announcing packet
                 let creationDate = (attributes[.creationDate] as? Date) ?? Date()
@@ -279,27 +293,6 @@ public final class SharePlugin: ObservableObject, TetherPlugin, @unchecked Senda
 
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)
-    }
-
-    private func uniqueDownloadsURL(for filename: String) -> URL {
-        let downloadsDir = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
-        var targetURL = downloadsDir.appendingPathComponent(filename)
-
-        let baseName = (filename as NSString).deletingPathExtension
-        let ext = (filename as NSString).pathExtension
-        var counter = 1
-
-        while FileManager.default.fileExists(atPath: targetURL.path) {
-            let newName: String
-            if ext.isEmpty {
-                newName = "\(baseName) (\(counter))"
-            } else {
-                newName = "\(baseName) (\(counter)).\(ext)"
-            }
-            targetURL = downloadsDir.appendingPathComponent(newName)
-            counter += 1
-        }
-        return targetURL
     }
 
     private func postFileReceivedNotification(filename: String, from deviceName: String, fileURL: URL) {

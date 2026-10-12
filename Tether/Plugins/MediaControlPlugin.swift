@@ -103,10 +103,11 @@ public final class MediaControlPlugin: ObservableObject, TetherPlugin, @unchecke
         }
     }
 
-    public func handlePayload(connection: DeviceConnection, packet: NetworkPacket, data: Data) {
+    public func handlePayload(connection: DeviceConnection, packet: NetworkPacket, fileURL: URL) {
         guard packet.type == "kdeconnect.mpris",
               let deviceId = connection.peerDeviceInfo?.deviceId,
-              packet.bool(for: "transferringAlbumArt") else { return }
+              packet.bool(for: "transferringAlbumArt"),
+              let data = try? Data(contentsOf: fileURL) else { return }
 
         albumArt[deviceId] = data
     }

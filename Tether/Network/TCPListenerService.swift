@@ -31,6 +31,7 @@ public final class TCPListenerService: @unchecked Sendable {
         for port in TCPListenerService.minPort...TCPListenerService.maxPort {
             if bindAndListen(on: port) {
                 activePort = port
+                DeviceIdentity.shared.advertisedTCPPort = Int(port)
                 TetherLog("[TCPListener] Listening for incoming KDE Connect TCP connections on port \(port)")
                 return
             }

@@ -110,14 +110,20 @@ struct TetherTests {
             uploader.start(
                 fileURL: url,
                 onReady: { offer in
+                    // Both ends use this Mac's identity on localhost, so pinning to
+                    // our own fingerprint exercises the verification path.
                     PayloadDownloader.download(
                         host: "127.0.0.1",
                         port: offer.port,
-                        size: offer.size
+                        size: offer.size,
+                        expectedPeerFingerprint: DeviceIdentity.shared.certificateFingerprint
                     ) { result in
                         // The uploader reports its own failures; only one side wins.
                         guard guardOnce.claim() else { return }
-                        continuation.resume(with: result)
+                        continuation.resume(with: result.flatMap { fileURL in
+                            defer { try? FileManager.default.removeItem(at: fileURL) }
+                            return Result { try Data(contentsOf: fileURL) }
+                        })
                     }
                 },
                 onProgress: { uploaderProgress.append($0) },
@@ -133,6 +139,62 @@ struct TetherTests {
         #expect(received == expected)
         #expect(uploaderProgress.count > 1, "expected multiple progress callbacks across chunks")
         #expect(uploaderProgress.last.map { $0 >= 1.0 } == true)
+    }
+
+    /// A payload server holding a different certificate than the paired device
+    /// must be refused, and nothing may be left on disk.
+    @Test func testPayloadDownloadRejectsUnpinnedCertificate() async throws {
+        let url = try makeTemporaryPayload(bytes: 4096)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let uploader = PayloadUploader()
+        let result: Result<URL, Error> = await withCheckedContinuation { continuation in
+            uploader.start(
+                fileURL: url,
+                onReady: { offer in
+                    PayloadDownloader.download(
+                        host: "127.0.0.1",
+                        port: offer.port,
+                        size: offer.size,
+                        expectedPeerFingerprint: String(repeating: "00:", count: 31) + "00"
+                    ) { continuation.resume(returning: $0) }
+                },
+                onProgress: { _ in },
+                onComplete: { _ in }
+            )
+        }
+        uploader.cancel()
+
+        guard case .failure(let error) = result else {
+            Issue.record("download should have been refused")
+            return
+        }
+        guard case PayloadError.certificateMismatch = error else {
+            Issue.record("expected certificateMismatch, got \(error)")
+            return
+        }
+    }
+
+    @Test func testFingerprintComparison() {
+        #expect(SocketTLS.fingerprintsMatch("ab:cd", "AB:CD"))
+        #expect(!SocketTLS.fingerprintsMatch("ab:cd", "ab:ce"))
+        #expect(!SocketTLS.fingerprintsMatch("", ""))
+        #expect(!SocketTLS.fingerprintsMatch(nil, "ab:cd"))
+    }
+
+    /// Peer-supplied file names must never leave the target directory.
+    @Test func testSafeFilenameStripsTraversal() {
+        #expect(SafeFilename.sanitize("../../Library/LaunchAgents/evil.plist") == "evil.plist")
+        #expect(SafeFilename.sanitize("..\\..\\x.txt") == "x.txt")
+        #expect(SafeFilename.sanitize("/etc/passwd") == "passwd")
+        #expect(SafeFilename.sanitize("..") == "ReceivedFile")
+        #expect(SafeFilename.sanitize(".hidden") == "hidden")
+        #expect(SafeFilename.sanitize(nil) == "ReceivedFile")
+        #expect(SafeFilename.sanitize("photo.jpg") == "photo.jpg")
+
+        let dir = FileManager.default.temporaryDirectory
+        let target = SafeFilename.uniqueURL(in: dir, for: "../../escape.txt")
+        #expect(target.deletingLastPathComponent().standardizedFileURL.path == dir.standardizedFileURL.path)
     }
 
     /// A packet type must be advertised in the direction it actually travels. The

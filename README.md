@@ -14,8 +14,8 @@
   <img src="https://img.shields.io/badge/Installed%20Size-5.0%20MB-brightgreen?style=flat-square" alt="Installed Size" />
   <img src="https://img.shields.io/badge/Idle%20RAM-~15%20MB-brightgreen?style=flat-square" alt="Idle RAM" />
   <img src="https://img.shields.io/badge/Idle%20CPU-0.0%25-blue?style=flat-square" alt="Idle CPU" />
-  <img src="https://img.shields.io/badge/Platform-macOS%2014.0%2B-black?style=flat-square" alt="Platform" />
-  <img src="https://img.shields.io/badge/Swift-5.9%2B-orange?style=flat-square" alt="Swift" />
+  <img src="https://img.shields.io/badge/Platform-macOS%2027%2B-black?style=flat-square" alt="Platform" />
+  <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift" />
   <img src="https://img.shields.io/badge/UI-SwiftUI%20%2B%20Observation-purple?style=flat-square" alt="SwiftUI" />
   <img src="https://img.shields.io/badge/License-GPL--2.0-green?style=flat-square" alt="License" />
 </p>
@@ -44,11 +44,11 @@ The official KDE Connect macOS release relies on Qt 6, KDE Frameworks, OpenSSL, 
 | **Idle CPU Usage** | 1.0 – 5.0% | **0.0%** | **Zero battery drain** |
 | **External Dependencies** | Qt 6, D-Bus, OpenSSL | **Zero** (Pure Apple Frameworks) | **No background bloat** |
 | **Cold Launch Time** | ~2 – 5 seconds | **< 50 milliseconds** | **Instantaneous** |
-| **Design Language** | Emulated Qt / Linux widgets | **Native Apple SwiftUI & Glassmorphism** | **True macOS look & feel** |
+| **Design Language** | Emulated Qt / Linux widgets | **Native SwiftUI, system controls** | **True macOS look & feel** |
 
 ### Why is Tether so compact and efficient?
 1. **Zero Web / Cross-Platform Runtimes**: No Chromium, Electron, Node.js, or Qt layers.
-2. **Native Network & TLS Stack**: Built directly with Apple's `Network.framework` (`NWListener`, `NWConnection`) for asynchronous socket I/O and Apple's `Security.framework` for local TLS handshakes.
+2. **Native Network & TLS Stack**: BSD sockets and Apple's `Security.framework` for TLS. (KDE Connect upgrades an open TCP connection to TLS after a plaintext handshake, which `Network.framework` cannot do.)
 3. **ABI-Stable Swift Runtime**: Leverages the native Swift standard library already preinstalled in macOS.
 4. **Single Optimized Mach-O Binary**: The entire app bundle is just a compiled 5.0 MB ARM64 binary that compresses down to **1.55 MB** inside the disk image.
 
@@ -56,16 +56,10 @@ The official KDE Connect macOS release relies on Qt 6, KDE Frameworks, OpenSSL, 
 
 ## ✨ Features
 
-### 📱 Interactive Phone Mockup Sidebar
-- **Dynamic Lockscreen Clock**: Large, high-legibility clock featuring SF Pro Rounded typography that updates live each second.
-- **Connection Status Pill**: Real-time network indicator (Wi-Fi / Cellular) and live device connectivity state.
-- **Glass Quick Actions**:
-  - 📤 **Send File**: Native file picker for instant file transfers.
-  - 📋 **Push Clipboard**: One-click bidirectional clipboard synchronization.
-  - 🔔 **Find My Phone**: Remotely ring your lost phone at maximum volume.
-  - 🔒 **Lock Screen**: Remotely secure your phone screen.
-- **Interactive Device Status & Volume**: Live battery level with charging animations, paired with an interactive volume scrubbing popover with haptic feedback.
-- **Now Playing Media Widget**: Dynamically expands when music or podcasts are playing on your phone, featuring track metadata, album glyphs, and playback controls (Previous, Play/Pause, Next).
+### 📱 Your Phone, at a Glance
+- **Sidebar** with your paired and nearby devices; each connected phone lists its Messages, Notifications, Files and Commands right under it.
+- **Overview** with battery, network, now playing (album art, playback controls, phone volume), recent files and remote-input status.
+- **Toolbar actions**: Find Phone (rings at full volume), Lock, Send Clipboard and Send Files, also in the Device menu with keyboard shortcuts.
 
 ### 📬 Notification Mirroring & Inline Reply
 - Forward Android alerts directly to macOS Notification Center.
@@ -73,8 +67,8 @@ The official KDE Connect macOS release relies on Qt 6, KDE Frameworks, OpenSSL, 
 - **System Permission Guard**: Proactively detects if macOS notification delivery is disabled in System Settings and displays a quick-action banner to restore permissions.
 
 ### ⚡️ Drag-and-Drop File Sharing
-- Effortless drag-and-drop landing target: drop files or folders directly into Tether to send them instantly over local Wi-Fi.
-- Live progress indicator with transfer speed tracking (MB/s) and completed transfers log.
+- Drop files anywhere in the Tether window (or on the menu bar popover) to send them over local Wi-Fi.
+- Files from your phone stream straight to Downloads, with live progress and a transfer log.
 
 ### 💬 SMS Sync & Conversation Threads
 - Synchronize active SMS threads from your phone.
@@ -88,28 +82,24 @@ The official KDE Connect macOS release relies on Qt 6, KDE Frameworks, OpenSSL, 
 ### 💻 Remote Shell Commands
 - Configure custom shell scripts and automation commands on your Mac and trigger them on demand from your phone.
 
-### 🎛️ Segmented Menu Bar Utility (`MenuBarExtra`)
-- Custom dynamic monochrome menu bar mark with connected (interlocking rings) and disconnected (severed link) states.
-- Automatic macOS template tinting across Light and Dark desktop appearances.
-- Discreet menu bar companion with stacked glass cards:
-  - App status and one-click window launcher.
-  - Device overview with live battery gauge.
-  - Mini media player widget.
-  - Instant pairing request review (Accept / Reject).
+### 🎛️ Menu Bar Companion (`MenuBarExtra`)
+- Monochrome menu bar mark with connected (interlocking rings) and disconnected (severed link) states.
+- A Control Center–style popover: device status, Find / Lock / Clipboard / Send File, now playing, nearby devices and pairing requests.
 
 ---
 
 ## 🔒 Privacy & Security
 
-- **Direct Peer-to-Peer Encryption**: All communication is secured using TLS 1.2 / 1.3 over local network sockets (port 1716 UDP & TCP).
+- **Direct Peer-to-Peer Encryption**: All communication is secured with TLS 1.2 over local network sockets (port 1716 UDP & TCP).
+- **Certificate Pinning**: A paired device must present the exact certificate it paired with; a device that only claims a paired device's ID is refused.
 - **No Cloud Services or Relays**: Data never leaves your local Wi-Fi network. No telemetry, no third-party servers, and no tracking.
-- **Native Keychain Storage**: Unique RSA-2048 device identity certificates and trust keys are securely stored in the macOS Keychain.
+- **Private Identity**: A unique P-256 device certificate, stored in `~/Library/Application Support/Tether` readable only by your user account and loaded in memory (never added to the keychain).
 
 ---
 
 ## 🛠️ System Requirements
 
-- **Mac**: macOS 14.0 (Sonoma) or newer (Apple Silicon & Intel supported).
+- **Mac**: macOS 27 or newer.
 - **Phone**: Android device running the official **KDE Connect** app (available on [Google Play](https://play.google.com/store/apps/details?id=org.kde.kdeconnect_tp) or [F-Droid](https://f-droid.org/packages/org.kde.kdeconnect_tp/)).
 - **Network**: Both devices must be connected to the same local Wi-Fi network (or reachable via local subnet / VPN like Tailscale).
 
@@ -117,7 +107,7 @@ The official KDE Connect macOS release relies on Qt 6, KDE Frameworks, OpenSSL, 
 
 ## 📥 Installation
 
-1. Download the latest **`Tether-1.2.dmg`** from the [GitHub Releases](https://github.com/subhashhhhhh/Tether/releases) page.
+1. Download the latest **`Tether-1.3.dmg`** from the [GitHub Releases](https://github.com/subhashhhhhh/Tether/releases) page.
 2. Open the downloaded `.dmg` file.
 3. Drag **Tether.app** into your **Applications** folder.
 4. Launch **Tether**.
@@ -180,10 +170,10 @@ The compiled application bundle will be located at:
 ## 🏛️ Architecture & Tech Stack
 
 - **UI Framework**: SwiftUI with Apple's `@Observable` observation framework.
-- **Design System**: AirSync-inspired glassmorphism, native Apple materials (`.ultraThinMaterial`), continuous corner radii, and SF Symbols.
-- **Networking**: Apple `Network.framework` (`NWListener`, `NWConnection`) for asynchronous socket I/O and TLS handshake validation.
-- **Concurrency**: Native Swift Concurrency (`async`/`await`, `@MainActor`, `Sendable`).
-- **Security**: Apple `Security.framework` for X.509 certificate creation and Keychain integration.
+- **Design**: Stock SwiftUI controls, grouped forms and a sidebar `List`, system colours and SF Symbols, so the app follows Light/Dark mode, accent colour and accessibility settings.
+- **Networking**: BSD sockets with `poll()`-driven I/O and SecureTransport TLS, pinned per device by certificate fingerprint.
+- **Concurrency**: `@MainActor` UI state with Swift Concurrency; networking on dedicated dispatch queues.
+- **Security**: `openssl` (bundled with macOS) creates the identity once; Apple `Security.framework` loads it and runs TLS.
 
 ---
 

@@ -18,7 +18,7 @@ public enum TransferStatus: Equatable, Sendable {
     case cancelled
 }
 
-public struct TransferItem: Identifiable, Sendable {
+public struct TransferItem: Identifiable, Equatable, Sendable {
     public let id: UUID
     public let deviceId: String
     public let deviceName: String
