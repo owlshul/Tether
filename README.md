@@ -130,8 +130,6 @@ xcodebuild -project Tether.xcodeproj -scheme Tether -configuration Release -deri
 scripts/release.sh
 ```
 
-The launch graphics live in [`marketing/`](marketing): a small React project that composes real app screenshots. Run `npm install` and `npm run dev`, then open `/?export` to regenerate the PNGs.
-
 ### How it works
 
 - **UI:** SwiftUI with `@Observable` view models, built from stock controls, grouped forms and a sidebar list, so it follows Light and Dark mode, your accent colour and accessibility settings.

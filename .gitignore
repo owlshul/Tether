@@ -13,3 +13,7 @@ dmg_staging/
 build_release/
 dmg_staging*/
 dist/
+
+# Local design and marketing work, kept out of the repository
+Design/
+marketing/
