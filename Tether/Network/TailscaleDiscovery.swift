@@ -94,6 +94,12 @@ public nonisolated enum TailscaleDiscovery {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = arguments
+        // The binary inside Tailscale.app is both the GUI and the CLI. Started
+        // from an app (no TERM/SHLVL in the environment) it tries to launch the
+        // GUI and prints an error, still exiting 0. This forces CLI mode.
+        var environment = ProcessInfo.processInfo.environment
+        environment["TAILSCALE_BE_CLI"] = "1"
+        process.environment = environment
         let output = Pipe()
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice

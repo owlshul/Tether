@@ -24,9 +24,93 @@ public struct SettingsView: View {
             Tab("Permissions", systemImage: "hand.raised") {
                 PermissionsSettings(viewModel: viewModel)
             }
+            Tab("About", systemImage: "info.circle") {
+                AboutSettings()
+            }
         }
         .frame(width: 560, height: 460)
         .onAppear { viewModel.refresh() }
+    }
+}
+
+// MARK: - About
+
+/// Who made Tether, shared with the app menu's About panel.
+enum TetherCredits {
+    static let author = "Subhash"
+    static let authorURL = URL(string: "https://github.com/subhashhhhhh")!
+    static let sourceURL = URL(string: "https://github.com/subhashhhhhh/Tether")!
+    static let issuesURL = URL(string: "https://github.com/subhashhhhhh/Tether/issues")!
+
+    static var version: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "–"
+        let build = info?["CFBundleVersion"] as? String ?? "–"
+        return "Version \(short) (\(build))"
+    }
+
+    /// Credits for the standard About panel.
+    static var aboutPanelCredits: NSAttributedString {
+        let text = NSMutableAttributedString(
+            string: "Made by \(author)\n",
+            attributes: [.font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)]
+        )
+        text.append(NSAttributedString(
+            string: "github.com/subhashhhhhh/Tether",
+            attributes: [.link: sourceURL, .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)]
+        ))
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        text.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: text.length))
+        return text
+    }
+
+    static func showAboutPanel() {
+        NSApp.activate()
+        NSApp.orderFrontStandardAboutPanel(options: [.credits: aboutPanelCredits])
+    }
+}
+
+struct AboutSettings: View {
+    var body: some View {
+        Form {
+            Section {
+                VStack(spacing: 6) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 72, height: 72)
+                        .accessibilityHidden(true)
+                    Text("Tether")
+                        .font(.title2.weight(.semibold))
+                    Text(TetherCredits.version)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+            }
+
+            Section {
+                LabeledContent("Made by") {
+                    Link(TetherCredits.author, destination: TetherCredits.authorURL)
+                }
+                LabeledContent("Source code") {
+                    Link("github.com/subhashhhhhh/Tether", destination: TetherCredits.sourceURL)
+                }
+                LabeledContent("Found a bug?") {
+                    Link("Report an issue", destination: TetherCredits.issuesURL)
+                }
+            }
+
+            Section {
+                Text("Tether is free software under the GPL-2.0 license. It works with KDE Connect, but is an independent project and isn't affiliated with KDE.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 
@@ -284,5 +368,10 @@ private struct PermissionRow<Action: View>: View {
 
 #Preview("Permissions needed") {
     SettingsView(viewModel: .mockDenied())
+}
+
+#Preview("About") {
+    AboutSettings()
+        .frame(width: 560, height: 460)
 }
 #endif

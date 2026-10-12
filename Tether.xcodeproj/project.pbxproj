@@ -6,6 +6,10 @@
 	objectVersion = 110;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		38226D9A307CF7BF00449642 /* TetherShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 38226D8E307CF7BE00449642 /* TetherShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		380DA5B4306B8D3200598FE4 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,13 +25,43 @@
 			remoteGlobalIDString = 380DA5A5306B8D3000598FE4;
 			remoteInfo = Tether;
 		};
+		38226D98307CF7BF00449642 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 380DA59E306B8D3000598FE4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 38226D8D307CF7BE00449642;
+			remoteInfo = TetherShare;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		38226D9F307CF7BF00449642 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "";
+			dstSubfolder = PlugIns;
+			files = (
+				38226D9A307CF7BF00449642 /* TetherShare.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		380DA5A6306B8D3000598FE4 /* Tether.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tether.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		380DA5B3306B8D3200598FE4 /* TetherTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TetherTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		380DA5BD306B8D3200598FE4 /* TetherUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TetherUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		38226D8E307CF7BE00449642 /* TetherShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TetherShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		38226D9B307CF7BF00449642 /* Exceptions for "TetherShare" folder in "TetherShare" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 38226D8D307CF7BE00449642 /* TetherShare */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		380DA5A8306B8D3000598FE4 /* Tether */ = {
@@ -43,6 +77,14 @@
 		380DA5C0306B8D3200598FE4 /* TetherUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = TetherUITests;
+			sourceTree = "<group>";
+		};
+		38226D8F307CF7BE00449642 /* TetherShare */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				38226D9B307CF7BF00449642 /* Exceptions for "TetherShare" folder in "TetherShare" target */,
+			);
+			path = TetherShare;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -63,6 +105,11 @@
 			files = (
 			);
 		};
+		38226D8B307CF7BE00449642 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -72,6 +119,7 @@
 				380DA5A8306B8D3000598FE4 /* Tether */,
 				380DA5B6306B8D3200598FE4 /* TetherTests */,
 				380DA5C0306B8D3200598FE4 /* TetherUITests */,
+				38226D8F307CF7BE00449642 /* TetherShare */,
 				380DA5A7306B8D3000598FE4 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -82,6 +130,7 @@
 				380DA5A6306B8D3000598FE4 /* Tether.app */,
 				380DA5B3306B8D3200598FE4 /* TetherTests.xctest */,
 				380DA5BD306B8D3200598FE4 /* TetherUITests.xctest */,
+				38226D8E307CF7BE00449642 /* TetherShare.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -96,8 +145,12 @@
 				380DA5A2306B8D3000598FE4 /* Sources */,
 				380DA5A3306B8D3000598FE4 /* Frameworks */,
 				380DA5A4306B8D3000598FE4 /* Resources */,
+				38226D9F307CF7BF00449642 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
+			);
+			dependencies = (
+				38226D99307CF7BF00449642 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				380DA5A8306B8D3000598FE4 /* Tether */,
@@ -149,6 +202,24 @@
 			productReference = 380DA5BD306B8D3200598FE4 /* TetherUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		38226D8D307CF7BE00449642 /* TetherShare */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 38226D9C307CF7BF00449642 /* Build configuration list for PBXNativeTarget "TetherShare" */;
+			buildPhases = (
+				38226D8A307CF7BE00449642 /* Sources */,
+				38226D8B307CF7BE00449642 /* Frameworks */,
+				38226D8C307CF7BE00449642 /* Resources */,
+			);
+			buildRules = (
+			);
+			fileSystemSynchronizedGroups = (
+				38226D8F307CF7BE00449642 /* TetherShare */,
+			);
+			name = TetherShare;
+			productName = TetherShare;
+			productReference = 38226D8E307CF7BE00449642 /* TetherShare.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -170,6 +241,9 @@
 						CreatedOnToolsVersion = 27.0;
 						TestTargetID = 380DA5A5306B8D3000598FE4;
 					};
+					38226D8D307CF7BE00449642 = {
+						CreatedOnToolsVersion = 27.0;
+					};
 				};
 			};
 			buildConfigurationList = 380DA5A1306B8D3000598FE4 /* Build configuration list for PBXProject "Tether" */;
@@ -189,6 +263,7 @@
 				380DA5A5306B8D3000598FE4 /* Tether */,
 				380DA5B2306B8D3200598FE4 /* TetherTests */,
 				380DA5BC306B8D3200598FE4 /* TetherUITests */,
+				38226D8D307CF7BE00449642 /* TetherShare */,
 			);
 		};
 /* End PBXProject section */
@@ -205,6 +280,11 @@
 			);
 		};
 		380DA5BB306B8D3200598FE4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		38226D8C307CF7BE00449642 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
 			);
@@ -227,6 +307,11 @@
 			files = (
 			);
 		};
+		38226D8A307CF7BE00449642 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -239,6 +324,11 @@
 			isa = PBXTargetDependency;
 			target = 380DA5A5306B8D3000598FE4 /* Tether */;
 			targetProxy = 380DA5BE306B8D3200598FE4 /* PBXContainerItemProxy */;
+		};
+		38226D99307CF7BF00449642 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 38226D8D307CF7BE00449642 /* TetherShare */;
+			targetProxy = 38226D98307CF7BF00449642 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -363,12 +453,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Subhash. Licensed under GPL-2.0.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Tether discovers and connects with your Android devices over your local network.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -384,7 +475,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.4;
+				MARKETING_VERSION = 1.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.subhashh.Tether;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -407,12 +498,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Subhash. Licensed under GPL-2.0.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Tether discovers and connects with your Android devices over your local network.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -428,7 +520,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.4;
+				MARKETING_VERSION = 1.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.subhashh.Tether;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -543,6 +635,68 @@
 			};
 			name = Release;
 		};
+		38226D9D307CF7BF00449642 /* Debug configuration for PBXNativeTarget "TetherShare" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 7;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TetherShare/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Tether;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Subhash. Licensed under GPL-2.0.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.subhashh.Tether.Share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		38226D9E307CF7BF00449642 /* Release configuration for PBXNativeTarget "TetherShare" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 7;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TetherShare/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Tether;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Subhash. Licensed under GPL-2.0.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.subhashh.Tether.Share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -575,6 +729,14 @@
 			buildConfigurations = (
 				380DA5CC306B8D3200598FE4 /* Debug configuration for PBXNativeTarget "TetherUITests" */,
 				380DA5CD306B8D3200598FE4 /* Release configuration for PBXNativeTarget "TetherUITests" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		38226D9C307CF7BF00449642 /* Build configuration list for PBXNativeTarget "TetherShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				38226D9D307CF7BF00449642 /* Debug configuration for PBXNativeTarget "TetherShare" */,
+				38226D9E307CF7BF00449642 /* Release configuration for PBXNativeTarget "TetherShare" */,
 			);
 			defaultConfigurationName = Release;
 		};

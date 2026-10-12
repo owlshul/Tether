@@ -65,14 +65,17 @@ enum SocketTLS {
         return status
     }
 
-    /// Writes the whole buffer or fails; never returns having written part of it.
+    /// Writes the whole buffer to the socket or fails; never returns having
+    /// written part of it.
     ///
     /// A short write on a framed stream corrupts every packet after it, so a
     /// non-`noErr` result means the connection must be torn down.
     ///
-    /// SecureTransport often reports `errSSLWouldBlock` together with a positive
-    /// byte count, so a fully drained buffer is success regardless of the status
-    /// that came with the final write.
+    /// When the socket buffer fills, SecureTransport accepts the rest of the
+    /// data into its own buffer and returns `errSSLWouldBlock` with the full
+    /// byte count. Those bytes have not reached the socket yet, so keep calling
+    /// `SSLWrite` with no new data until it reports `noErr`. Closing before that
+    /// silently drops them (a file arrived cut off at the 128 KB socket buffer).
     static func writeAll(_ ctx: SSLContext, fd: Int32, _ data: Data, deadline: Date) -> OSStatus {
         var status: OSStatus = noErr
         data.withUnsafeBytes { raw in
@@ -85,21 +88,36 @@ enum SocketTLS {
                     remaining -= written
                     ptr = ptr.advanced(by: written)
                 }
-                if remaining == 0 {
-                    status = noErr
-                    return
-                }
                 if status == errSSLWouldBlock {
-                    guard wait(fd: fd, for: POLLOUT, until: deadline) else {
-                        status = errSSLWouldBlock
-                        return
-                    }
+                    guard wait(fd: fd, for: POLLOUT, until: deadline) else { return }
                     continue
                 }
                 if status != noErr { return }
             }
         }
+        guard status == noErr || status == errSSLWouldBlock else { return status }
+
+        // Flush whatever SecureTransport is still holding.
+        while status == errSSLWouldBlock {
+            guard wait(fd: fd, for: POLLOUT, until: deadline) else { return errSSLWouldBlock }
+            var written = 0
+            status = SSLWrite(ctx, nil, 0, &written)
+        }
         return status
+    }
+
+    /// Ends a connection without losing data still in flight: sends TLS
+    /// close_notify, half-closes, and waits briefly for the peer to finish
+    /// reading and close its side. Closing outright can reset the connection
+    /// and discard bytes the peer hasn't read yet.
+    static func closeGracefully(_ ctx: SSLContext, fd: Int32, timeout: TimeInterval = 5) {
+        SSLClose(ctx)
+        Darwin.shutdown(fd, SHUT_WR)
+        let deadline = Date().addingTimeInterval(timeout)
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while wait(fd: fd, for: POLLIN, until: deadline) {
+            if Darwin.read(fd, &buffer, buffer.count) <= 0 { break }
+        }
     }
 
     /// SHA-256 fingerprint of the peer's leaf certificate, lowercase hex with colons.

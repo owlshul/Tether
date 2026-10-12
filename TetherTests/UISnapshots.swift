@@ -55,6 +55,10 @@ import AppKit
                          titled: false, to: dir.appendingPathComponent("menubar-pair-light.png"))
         try await render(SettingsView(viewModel: .mock()), size: CGSize(width: 560, height: 500), dark: false,
                          to: dir.appendingPathComponent("settings-light.png"))
+        for dark in [false, true] {
+            try await render(AboutSettings(), size: CGSize(width: 560, height: 460), dark: dark,
+                             to: dir.appendingPathComponent("about-\(dark ? "dark" : "light").png"))
+        }
     }
 
     /// Hosts `view` in a real window and snapshots the window frame, so toolbars

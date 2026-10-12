@@ -280,6 +280,10 @@ struct TetherCommands: Commands {
     let appModel: TetherAppModel
 
     var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("About Tether") { TetherCredits.showAboutPanel() }
+        }
+
         CommandGroup(after: .newItem) {
             Button("Connect by Address…") {
                 openWindow(id: "main")

@@ -131,13 +131,32 @@ public final class SharePlugin: ObservableObject, TetherPlugin, @unchecked Senda
 
         sendQueue.async { [weak self] in
             guard let self else { return }
-            for url in urls {
-                self.sendSingleFileSynchronously(url: url, deviceId: deviceId, deviceName: deviceName, connection: connection)
+            // Announce the files as one batch, as the official desktop client
+            // does: every packet carries the batch's file count and total size.
+            // Without them, KDE Connect on Android treats each file as a
+            // separate legacy transfer, and in a multi-file send it kept only
+            // the last one.
+            let files = urls.compactMap { url -> (URL, Int64)? in
+                guard let size = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? NSNumber else {
+                    TetherLog("[SharePlugin] Skipping unreadable file \(url.path)")
+                    return nil
+                }
+                return (url, size.int64Value)
+            }
+            let batch = Batch(numberOfFiles: files.count, totalPayloadSize: files.reduce(0) { $0 + $1.1 })
+            for (url, _) in files {
+                self.sendSingleFileSynchronously(url: url, batch: batch, deviceId: deviceId, deviceName: deviceName, connection: connection)
             }
         }
     }
 
-    private func sendSingleFileSynchronously(url: URL, deviceId: String, deviceName: String, connection: DeviceConnection) {
+    /// The whole multi-file send, announced in every file's packet.
+    private struct Batch {
+        let numberOfFiles: Int
+        let totalPayloadSize: Int64
+    }
+
+    private func sendSingleFileSynchronously(url: URL, batch: Batch, deviceId: String, deviceName: String, connection: DeviceConnection) {
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
               let size = (attributes[.size] as? NSNumber)?.int64Value else {
             TetherLog("[SharePlugin] Failed to read attributes for file \(url.path)")
@@ -185,7 +204,9 @@ public final class SharePlugin: ObservableObject, TetherPlugin, @unchecked Senda
                         "filename": AnyCodable(filename),
                         "creationTime": AnyCodable(Int64(creationDate.timeIntervalSince1970 * 1000)),
                         "lastModified": AnyCodable(Int64(modDate.timeIntervalSince1970 * 1000)),
-                        "open": AnyCodable(false)
+                        "open": AnyCodable(false),
+                        "numberOfFiles": AnyCodable(batch.numberOfFiles),
+                        "totalPayloadSize": AnyCodable(batch.totalPayloadSize)
                     ],
                     payloadSize: offer.size,
                     payloadTransferInfo: ["port": AnyCodable(Int(offer.port))]

@@ -205,6 +205,7 @@ public final class TetherAppModel {
         offlineDevices = offline.sorted(by: byName)
 
         updateDevicePluginStates()
+        ShareInbox.shared.publishConnectedDevices(connectedDevices)
 
         if selectedDeviceId == nil || !allDevices.contains(where: { $0.id == selectedDeviceId }) {
             selectedDeviceId = connectedDevices.first?.id ?? offlineDevices.first?.id ?? availableDevices.first?.id

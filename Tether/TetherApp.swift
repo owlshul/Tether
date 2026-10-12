@@ -24,6 +24,8 @@ struct TetherApp: App {
         _ = DeviceIdentity.shared
         // Start background discovery and network services
         TetherService.shared.start()
+        // Receive what's shared from the Share menu
+        ShareInbox.shared.start()
     }
 
     var body: some Scene {

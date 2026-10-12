@@ -475,8 +475,15 @@ public final class PayloadUploader: @unchecked Sendable {
         // so the completion handler is invoked exactly once.
         guard let teardown else { return }
 
-        if let ctx = teardown.ctx { SSLClose(ctx) }
         if teardown.listen >= 0 { Darwin.close(teardown.listen) }
+        if let ctx = teardown.ctx {
+            if case .success = result, teardown.client >= 0 {
+                // Let the phone read the last bytes before the socket goes away.
+                SocketTLS.closeGracefully(ctx, fd: teardown.client)
+            } else {
+                SSLClose(ctx)
+            }
+        }
         if teardown.client >= 0 { Darwin.close(teardown.client) }
 
         // Drop the self-retain, held in a local so the release happens outside the lock.

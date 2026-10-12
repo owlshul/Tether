@@ -43,7 +43,7 @@ On your phone, install **KDE Connect** from [Google Play](https://play.google.co
 
 **Your texts.** SMS conversations sync to the Messages section, where you can read threads and send replies.
 
-**Files, both ways.** Drop files anywhere in the Tether window, or on the menu bar popover, to send them to your phone. Files shared from your phone land in **Downloads** with live progress.
+**Files, both ways.** Drop files anywhere in the Tether window or on the menu bar popover, or choose **Share › Tether** in Finder, Photos and other apps, to send them to your phone. With more than one phone connected, the Share menu asks which one. Files shared from your phone land in **Downloads** with live progress.
 
 **Clipboard, media and remote control.** Copy on one device, paste on the other. See what's playing on your phone and control playback and volume. **Find Phone** rings it at full volume, and **Lock** locks it.
 
