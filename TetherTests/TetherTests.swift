@@ -203,9 +203,9 @@ struct TetherTests {
         let json = """
         {
           "BackendState": "Running",
-          "Self": { "UserID": 7, "TailscaleIPs": ["100.114.2.27", "fd7a::1"] },
+          "Self": { "UserID": 7, "TailscaleIPs": ["100.101.42.7", "fd7a::1"] },
           "Peer": {
-            "a": { "HostName": "pixel", "OS": "android", "Online": true, "UserID": 7, "TailscaleIPs": ["fd7a::2", "100.123.228.122"] },
+            "a": { "HostName": "pixel", "OS": "android", "Online": true, "UserID": 7, "TailscaleIPs": ["fd7a::2", "100.88.17.53"] },
             "b": { "HostName": "friends-phone", "OS": "android", "Online": true, "UserID": 99, "TailscaleIPs": ["100.64.0.9"] },
             "c": { "HostName": "server", "OS": "linux", "Online": true, "UserID": 7, "TailscaleIPs": ["100.127.50.25"] },
             "d": { "HostName": "old-phone", "OS": "android", "Online": false, "UserID": 7, "TailscaleIPs": ["100.64.0.10"] },
@@ -218,8 +218,8 @@ struct TetherTests {
             Issue.record("expected running, got \(status)")
             return
         }
-        #expect(selfIP == "100.114.2.27")
-        #expect(phones.map(\.ip) == ["100.64.0.11", "100.123.228.122"])
+        #expect(selfIP == "100.101.42.7")
+        #expect(phones.map(\.ip) == ["100.64.0.11", "100.88.17.53"])
 
         let stopped = TailscaleDiscovery.parse(Data(#"{"BackendState":"Stopped"}"#.utf8))
         #expect(stopped == .notRunning)

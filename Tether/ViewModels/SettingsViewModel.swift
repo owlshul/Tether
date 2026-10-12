@@ -150,7 +150,7 @@ public final class SettingsViewModel {
     #if DEBUG
     public static func mock() -> SettingsViewModel {
         let vm = SettingsViewModel(isMock: true)
-        vm.deviceName = "subhash’s MacBook Air"
+        vm.deviceName = "MacBook Air"
         vm.deviceId = "b0ffaae46842413d997e1da63fcd6f93"
         vm.certificateFingerprint = "7F:1E:AA:32:89:01:BC:DE:45:67:89:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:01:23:45:67:89:AB:CD:EF"
         vm.pairedDevices = [
@@ -163,8 +163,8 @@ public final class SettingsViewModel {
             )
         ]
         vm.launchAtLogin = true
-        vm.tailscaleStatus = .running(selfIP: "100.114.2.27", phones: [
-            TailscalePeer(name: "Pixel 9 Pro", ip: "100.123.228.122", os: "android")
+        vm.tailscaleStatus = .running(selfIP: "100.101.42.7", phones: [
+            TailscalePeer(name: "Pixel 9 Pro", ip: "100.88.17.53", os: "android")
         ])
         vm.notificationAuthStatus = .authorized
         vm.isAccessibilityTrusted = true

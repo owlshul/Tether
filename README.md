@@ -1,196 +1,145 @@
-# Tether
+<p align="center">
+  <img src="Tether/Assets.xcassets/AppIcon.appiconset/icon_512x512.png" width="112" height="112" alt="Tether app icon" />
+</p>
+
+<h1 align="center">Tether</h1>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/subhashhhhhh/Tether/main/Tether/Assets.xcassets/AppIcon.appiconset/icon_512x512.png" width="128" height="128" alt="Tether App Icon" />
+  <strong>Your Android phone, at home on your Mac.</strong><br />
+  Notifications you can reply to, your texts, files and clipboard, in a native Mac app that weighs 2.3&nbsp;MB.
 </p>
 
 <p align="center">
-  <strong>A modern, native macOS companion for Android built on the KDE Connect protocol.</strong>
+  <a href="https://github.com/subhashhhhhh/Tether/releases/latest"><img src="https://img.shields.io/github/v/release/subhashhhhhh/Tether?style=flat-square&color=2e6bf0&label=download" alt="Latest release" /></a>
+  <img src="https://img.shields.io/badge/macOS-15%2B-black?style=flat-square" alt="macOS 15 or later" />
+  <img src="https://img.shields.io/badge/Apple%20Silicon%20%26%20Intel-supported-black?style=flat-square" alt="Apple Silicon and Intel" />
+  <img src="https://img.shields.io/badge/license-GPL--2.0-3b8f4a?style=flat-square" alt="GPL-2.0" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/subhashhhhhh/Tether/releases"><img src="https://img.shields.io/github/v/release/subhashhhhhh/Tether?style=flat-square&color=blue" alt="Release" /></a>
-  <img src="https://img.shields.io/badge/DMG%20Size-2.3%20MB-brightgreen?style=flat-square" alt="DMG Size" />
-  <img src="https://img.shields.io/badge/Installed%20Size-5.8%20MB-brightgreen?style=flat-square" alt="Installed Size" />
-  <img src="https://img.shields.io/badge/Idle%20RAM-~15%20MB-brightgreen?style=flat-square" alt="Idle RAM" />
-  <img src="https://img.shields.io/badge/Idle%20CPU-0.0%25-blue?style=flat-square" alt="Idle CPU" />
-  <img src="https://img.shields.io/badge/Platform-macOS%2015%2B-black?style=flat-square" alt="Platform" />
-  <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift" />
-  <img src="https://img.shields.io/badge/UI-SwiftUI%20%2B%20Observation-purple?style=flat-square" alt="SwiftUI" />
-  <img src="https://img.shields.io/badge/License-GPL--2.0-green?style=flat-square" alt="License" />
+  <img src="docs/images/hero.jpg" alt="Tether's main window and menu bar popover on a Mac desktop" />
 </p>
 
----
+Tether is a native macOS app for the free **KDE Connect** app on Android. Pair your phone once, and from then on it shows up in your menu bar whenever it's nearby: phone notifications appear on your Mac and can be answered there, your text conversations sync, files and the clipboard move both ways, and you can ring, lock or control your phone without picking it up.
 
-## Overview
+It is written entirely in Swift and SwiftUI, with no Qt, no Electron and no third-party libraries.
 
-**Tether** brings the power and versatility of the KDE Connect ecosystem to macOS in a fully native, sleek, and high-performance application. Designed from the ground up using SwiftUI, Apple's Observation framework, and native system materials, Tether seamlessly bridges the gap between your Mac and your Android device with **0.0% idle CPU** overhead and zero external dependencies.
+## Download
 
-Whether you want to push files, mirror notifications with inline replies, sync clipboards, control media, or navigate presentations with a virtual laser pointer, Tether provides an integrated, Apple-native experience.
+Get the latest release from the **[Releases page](https://github.com/subhashhhhhh/Tether/releases/latest)**. There are two downloads; pick the one for your Mac:
 
----
+| Your Mac | Download |
+| --- | --- |
+| Apple Silicon (M1 and later) | `Tether-<version>-AppleSilicon.dmg` |
+| Intel | `Tether-<version>-Intel.dmg` |
 
-## ⚡️ Lightweight & Blazing Fast: Tether vs. Official KDE Connect macOS
+Not sure? Apple menu → **About This Mac**: it says **Chip** on Apple Silicon and **Processor** on Intel. Tether needs **macOS 15 Sequoia** or later.
 
-The official KDE Connect macOS release relies on Qt 6, KDE Frameworks, OpenSSL, D-Bus, and hundreds of dynamic shared libraries bundled into the package, resulting in a download size of **~90 MB** (expanding to **~370 MB** installed) and constant background resource overhead.
+On your phone, install **KDE Connect** from [Google Play](https://play.google.com/store/apps/details?id=org.kde.kdeconnect_tp) or [F-Droid](https://f-droid.org/packages/org.kde.kdeconnect_tp/).
 
-**Tether is written 100% natively in Swift**, utilizing Apple's system frameworks directly.
+## What it does
 
-| Metric | Official KDE Connect (macOS) | Tether | Advantage |
-| :--- | :--- | :--- | :--- |
-| **Download / DMG Size** | ~90 MB | **2.3 MB** | **~97% smaller** |
-| **Installed App Size** | ~370 MB | **5.8 MB** | **~98% smaller** |
-| **Idle Memory (RAM)** | ~150 – 300 MB | **~15 – 25 MB** | **~90% less RAM** |
-| **Idle CPU Usage** | 1.0 – 5.0% | **0.0%** | **Zero battery drain** |
-| **External Dependencies** | Qt 6, D-Bus, OpenSSL | **Zero** (Pure Apple Frameworks) | **No background bloat** |
-| **Cold Launch Time** | ~2 – 5 seconds | **< 50 milliseconds** | **Instantaneous** |
-| **Design Language** | Emulated Qt / Linux widgets | **Native SwiftUI, system controls** | **True macOS look & feel** |
+**Notifications, answered from the Mac.** Phone notifications appear in Notification Center. Messaging apps that support it (SMS, WhatsApp, Telegram, Signal and others) can be replied to right from the banner, and anything you dismiss on the Mac is dismissed on the phone.
 
-### Why is Tether so compact and efficient?
-1. **Zero Web / Cross-Platform Runtimes**: No Chromium, Electron, Node.js, or Qt layers.
-2. **Native Network & TLS Stack**: BSD sockets and Apple's `Security.framework` for TLS. (KDE Connect upgrades an open TCP connection to TLS after a plaintext handshake, which `Network.framework` cannot do.)
-3. **ABI-Stable Swift Runtime**: Leverages the native Swift standard library already preinstalled in macOS.
-4. **One Small Binary per Mac**: Separate Apple Silicon and Intel downloads, each a single compiled Mach-O of about 5.8 MB that compresses to about 2.3 MB.
+**Your texts.** SMS conversations sync to the Messages section, where you can read threads and send replies.
 
----
+**Files, both ways.** Drop files anywhere in the Tether window, or on the menu bar popover, to send them to your phone. Files shared from your phone land in **Downloads** with live progress.
 
-## ✨ Features
+**Clipboard, media and remote control.** Copy on one device, paste on the other. See what's playing on your phone and control playback and volume. **Find Phone** rings it at full volume, and **Lock** locks it.
 
-### 📱 Your Phone, at a Glance
-- **Sidebar** with your paired and nearby devices; each connected phone lists its Messages, Notifications, Files and Commands right under it.
-- **Overview** with battery, network, now playing (album art, playback controls, phone volume), recent files and remote-input status.
-- **Toolbar actions**: Find Phone (rings at full volume), Lock, Send Clipboard and Send Files, also in the Device menu with keyboard shortcuts.
+**Your phone as a trackpad and presenter.** KDE Connect's Remote Input and Presentation tools move the pointer, click, scroll, type and show an on-screen laser pointer. This needs Accessibility access, which you can grant from Tether's Overview or Settings.
 
-### 📬 Notification Mirroring & Inline Reply
-- Forward Android alerts directly to macOS Notification Center.
-- **Inline Replies**: Respond to SMS, WhatsApp, Telegram, or Signal notifications directly from macOS notification banners or the in-app Notifications tab.
-- **System Permission Guard**: Proactively detects if macOS notification delivery is disabled in System Settings and displays a quick-action banner to restore permissions.
+**Commands.** Set up shell commands on your Mac and run them from your phone.
 
-### ⚡️ Drag-and-Drop File Sharing
-- Drop files anywhere in the Tether window (or on the menu bar popover) to send them over local Wi-Fi.
-- Files from your phone stream straight to Downloads, with live progress and a transfer log.
+**Lives in the menu bar.** The menu bar popover shows your phone's battery and connection, quick actions, what's playing and new pairing requests. The main window has a sidebar with your devices and each phone's Messages, Notifications, Files and Commands.
 
-### 💬 SMS Sync & Conversation Threads
-- Synchronize active SMS threads from your phone.
-- Native conversation viewer with iMessage-style bubbles and a responsive bottom composer.
+<p align="center">
+  <img src="docs/images/messages.jpg" alt="Tether's Messages view with a reply from a notification banner" />
+</p>
 
-### 🖱️ Remote Input & Presentation Tools
-- **Wireless Trackpad**: Control cursor movement, tap-to-click, and two-finger scrolling from your phone's touchscreen.
-- **Virtual Laser Pointer**: Full-screen transparent overlay rendering a high-visibility laser dot for presentations and slide decks.
-- macOS Accessibility integration for smooth, native input synthesis (`CGEvent`).
+## Use it from anywhere with Tailscale
 
-### 🌍 Tailscale: Connect From Anywhere
-- If Tailscale is running on your Mac and phone, Tether finds your phone on your tailnet automatically, even when you're not on the same Wi-Fi.
-- Only Android and iOS devices signed in to your own Tailscale account are contacted. Tether reads the local `tailscale` CLI and never talks to Tailscale's servers.
-- Turn it off in Settings › General › Tailscale. "Connect by Address…" also accepts Tailscale names such as `phone.tailnet.ts.net`.
+KDE Connect normally needs your phone and Mac on the same Wi-Fi. If you use [Tailscale](https://tailscale.com) on both, Tether finds your phone on your tailnet automatically, so everything keeps working when you're on mobile data or a different network.
 
-### 💻 Remote Shell Commands
-- Configure custom shell scripts and automation commands on your Mac and trigger them on demand from your phone.
+- Tether only contacts Android and iOS devices that are signed in to **your own** Tailscale account. Devices shared with you by other people are never contacted.
+- It reads your tailnet from the `tailscale` app on your Mac and never talks to Tailscale's servers.
+- Turn it on or off in **Settings › General › Tailscale**. **Connect by Address…** also accepts Tailscale names such as `phone.tailnet.ts.net`.
 
-### 🎛️ Menu Bar Companion (`MenuBarExtra`)
-- Monochrome menu bar mark with connected (interlocking rings) and disconnected (severed link) states.
-- A Control Center–style popover: device status, Find / Lock / Clipboard / Send File, now playing, nearby devices and pairing requests.
+<p align="center">
+  <img src="docs/images/anywhere.jpg" alt="Tether connecting to a phone on mobile data over Tailscale" />
+</p>
 
----
+## Small, and quiet when idle
 
-## 🔒 Privacy & Security
+<p align="center">
+  <img src="docs/images/size.jpg" alt="Tether's 2.3 MB download compared with the official KDE Connect for macOS at 87 MB" />
+</p>
 
-- **Direct Peer-to-Peer Encryption**: All communication is secured with TLS 1.2 over local network sockets (port 1716 UDP & TCP).
-- **Certificate Pinning**: A paired device must present the exact certificate it paired with; a device that only claims a paired device's ID is refused.
-- **No Cloud Services or Relays**: Data never leaves your local Wi-Fi network. No telemetry, no third-party servers, and no tracking.
-- **Private Identity**: A unique P-256 device certificate, stored in `~/Library/Application Support/Tether` readable only by your user account and loaded in memory (never added to the keychain).
+| | Tether 1.4 | KDE Connect 26.08 for macOS |
+| --- | --- | --- |
+| Download (Apple Silicon disk image) | **2.3 MB** | 87 MB |
+| Installed app | **5.8 MB** | |
+| Memory while idle | **19 MB** | |
+| CPU while idle | **0%** | |
 
----
+Measured in October 2026 on an Apple Silicon Mac: Tether's numbers come from the 1.4 release while connected to a phone, and the official app's download size from KDE's release builds. The empty cells weren't measured.
 
-## 🛠️ System Requirements
+## Privacy and security
 
-- **Mac**: macOS 15 (Sequoia) or newer, on Apple Silicon or Intel.
-- **Phone**: Android device running the official **KDE Connect** app (available on [Google Play](https://play.google.com/store/apps/details?id=org.kde.kdeconnect_tp) or [F-Droid](https://f-droid.org/packages/org.kde.kdeconnect_tp/)).
-- **Network**: Both devices on the same Wi-Fi, or both connected to [Tailscale](https://tailscale.com) to use Tether from anywhere.
+- **No cloud.** Your phone and Mac talk directly over your local network, or over your own Tailscale network. There are no Tether servers, accounts, analytics or telemetry.
+- **Encrypted.** Every connection and file transfer uses TLS.
+- **Pinned to your phone.** Pairing saves your phone's certificate, and every later connection and file transfer must present that exact certificate. A device that only pretends to be your phone is refused.
+- **Your Mac's identity stays private.** Tether's certificate and key live in `~/Library/Application Support/Tether`, readable only by your user account, and are loaded into memory rather than the keychain.
 
----
+## Install and pair
 
-## 📥 Installation
+1. Open the disk image and drag **Tether** into **Applications**.
+2. Open Tether. It lives in the menu bar.
+3. On your phone, open **KDE Connect** and tap your Mac in the device list. Tether asks you to confirm: click **Pair**.
 
-1. Download the latest release from the [GitHub Releases](https://github.com/subhashhhhhh/Tether/releases) page: **`Tether-<version>-AppleSilicon.dmg`** for Macs with an M-series chip, or **`Tether-<version>-Intel.dmg`** for Intel Macs. (Not sure? Apple menu → About This Mac → Chip or Processor.)
-2. Open the downloaded `.dmg` file.
-3. Drag **Tether.app** into your **Applications** folder.
-4. Launch **Tether**.
+Your phone shows up under **Nearby** in Tether's sidebar too, if you'd rather start pairing from the Mac. If it doesn't appear, use **Connect by Address…** with the phone's IP address or Tailscale name.
 
-### 🛡️ First-Time Launch (Bypassing macOS Gatekeeper)
+### "Tether can't be opened"
 
-Because Tether is an open-source indie application not yet notarized through an Apple Developer account (\$99/year), macOS Gatekeeper will protectively block it on first launch. You can allow it using either of the two standard methods:
+Tether isn't notarized by Apple (that needs a paid developer account), so macOS blocks it the first time:
 
-#### Method 1: System Settings (Recommended — No Terminal Required)
-1. Try to open **Tether.app**. When the macOS warning appears (*"Tether cannot be opened because Apple cannot check it for malicious software"*), click **Done** or **Cancel**.
-2. Open your Mac's **System Settings** app.
-3. Go to **Privacy & Security** and scroll down to the **Security** section.
-4. You will see: *"'Tether' was blocked from use because it is not from an identified developer"*.
-5. Click **Open Anyway** (authenticate with Touch ID or your Mac password).
-6. Click **Open** on the final confirmation prompt.
+1. Try to open Tether, then close the warning.
+2. Open **System Settings → Privacy & Security**, scroll to **Security** and click **Open Anyway**.
 
-> **Tip**: You can also **Right-Click** (or **Control-Click**) `Tether.app` in your `/Applications` folder, select **Open**, and then click **Open** in the dialog.
+Or, in Terminal:
 
-#### Method 2: Terminal (`xattr`)
-If macOS marks the downloaded binary as quarantined or says the app is damaged, open **Terminal** and run:
 ```bash
 xattr -cr /Applications/Tether.app
 ```
-This removes the download quarantine attribute. You can now launch Tether normally from Spotlight or Launchpad.
 
-### Pairing Your Phone
-1. Open the **KDE Connect** app on your Android device.
-2. Under **Available devices**, find your Mac's name and tap **Request Pairing**.
-3. A notification banner and pairing card will appear on your Mac. Click **Accept**.
-4. Once paired, your phone and Mac will automatically sync whenever they are on the same network!
+## Build from source
 
----
+You need **Xcode 26** or later (the project uses Swift 6.2's default main-actor isolation). There are no package dependencies.
 
-## 🏗️ Building from Source
-
-Tether is written in 100% Swift and SwiftUI with no CocoaPods or external package dependencies.
-
-### Prerequisites
-- Xcode 15.0 or newer
-- Command Line Tools (`xcode-select --install`)
-
-### Build Commands
 ```bash
-# Clone the repository
 git clone https://github.com/subhashhhhhh/Tether.git
 cd Tether
 
-# Build the Release configuration
-xcodebuild -project Tether.xcodeproj -scheme Tether -configuration Release build
-
-# Build the release disk images (one Apple Silicon, one Intel) into dist/
-scripts/release.sh
-
-# Run unit tests
+# Run the tests
 xcodebuild test -project Tether.xcodeproj -scheme Tether -destination "platform=macOS"
+
+# Build the app (ends up in build/Build/Products/Release/Tether.app)
+xcodebuild -project Tether.xcodeproj -scheme Tether -configuration Release -derivedDataPath build build
+
+# Build the two release disk images (Apple Silicon and Intel) into dist/
+scripts/release.sh
 ```
 
-The compiled application bundle will be located at:
-`build/Build/Products/Release/Tether.app`
+The launch graphics live in [`marketing/`](marketing): a small React project that composes real app screenshots. Run `npm install` and `npm run dev`, then open `/?export` to regenerate the PNGs.
 
----
+### How it works
 
-## 🏛️ Architecture & Tech Stack
+- **UI:** SwiftUI with `@Observable` view models, built from stock controls, grouped forms and a sidebar list, so it follows Light and Dark mode, your accent colour and accessibility settings.
+- **Networking:** BSD sockets with `poll()`-driven I/O and Security framework TLS. KDE Connect upgrades an open connection to TLS after a plaintext handshake, which `Network.framework` can't do.
+- **Identity:** created once with the `openssl` tool that ships with macOS, then loaded in memory by the Security framework.
 
-- **UI Framework**: SwiftUI with Apple's `@Observable` observation framework.
-- **Design**: Stock SwiftUI controls, grouped forms and a sidebar `List`, system colours and SF Symbols, so the app follows Light/Dark mode, accent colour and accessibility settings.
-- **Networking**: BSD sockets with `poll()`-driven I/O and SecureTransport TLS, pinned per device by certificate fingerprint.
-- **Concurrency**: `@MainActor` UI state with Swift Concurrency; networking on dedicated dispatch queues.
-- **Security**: `openssl` (bundled with macOS) creates the identity once; Apple `Security.framework` loads it and runs TLS.
+## License
 
----
+GPL-2.0, like the KDE Connect ecosystem. See [LICENSE](LICENSE).
 
-## 📄 License
-
-Tether is distributed under the GNU General Public License v2.0 (GPL-2.0), matching the KDE Connect protocol ecosystem. See the LICENSE file for details.
-
----
-
-<p align="center">
-  Crafted with care for macOS. Enjoy a seamless connection between Mac and Android!
-</p>
+Tether is an independent project and isn't affiliated with KDE.

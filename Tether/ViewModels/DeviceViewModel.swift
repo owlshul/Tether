@@ -183,14 +183,17 @@ public final class DeviceViewModel: Identifiable, Hashable {
 extension DeviceViewModel {
     public static func mockConnectedPhone() -> DeviceViewModel {
         let now = Date()
-        let alex = SMSConversation(threadId: 101, addresses: ["+1 555 123 4567"], messages: [
-            SMSMessage(body: "Did the slides come through?", addresses: ["+1 555 123 4567"], date: now.addingTimeInterval(-3600 * 26), type: 1, threadId: 101, read: true),
-            SMSMessage(body: "Yep, opening them now", addresses: ["+1 555 123 4567"], date: now.addingTimeInterval(-3600 * 25), type: 2, threadId: 101, read: true),
-            SMSMessage(body: "Are we still on for 4?", addresses: ["+1 555 123 4567"], date: now.addingTimeInterval(-240), type: 1, threadId: 101, read: false),
-            SMSMessage(body: "Running ten minutes late, save me a seat", addresses: ["+1 555 123 4567"], date: now.addingTimeInterval(-60), type: 2, threadId: 101, read: true)
+        let alex = SMSConversation(threadId: 101, addresses: ["Alex Rivera"], messages: [
+            SMSMessage(body: "Did the slides come through?", addresses: ["Alex Rivera"], date: now.addingTimeInterval(-3600 * 26), type: 1, threadId: 101, read: true),
+            SMSMessage(body: "Yep, opening them now", addresses: ["Alex Rivera"], date: now.addingTimeInterval(-3600 * 25), type: 2, threadId: 101, read: true),
+            SMSMessage(body: "Are we still on for 4?", addresses: ["Alex Rivera"], date: now.addingTimeInterval(-240), type: 1, threadId: 101, read: false),
+            SMSMessage(body: "Running ten minutes late, save me a seat", addresses: ["Alex Rivera"], date: now.addingTimeInterval(-60), type: 2, threadId: 101, read: true)
         ])
-        let bank = SMSConversation(threadId: 102, addresses: ["HDFCBK"], messages: [
-            SMSMessage(body: "Your OTP for login is 482913. Do not share it with anyone.", addresses: ["HDFCBK"], date: now.addingTimeInterval(-7200), type: 1, threadId: 102, read: true)
+        let mom = SMSConversation(threadId: 102, addresses: ["Mom"], messages: [
+            SMSMessage(body: "Call me when you land ✈️", addresses: ["Mom"], date: now.addingTimeInterval(-7200), type: 1, threadId: 102, read: true)
+        ])
+        let sam = SMSConversation(threadId: 103, addresses: ["Sam Chen"], messages: [
+            SMSMessage(body: "Sending you the photos from Saturday", addresses: ["Sam Chen"], date: now.addingTimeInterval(-3600 * 30), type: 1, threadId: 103, read: true)
         ])
 
         return DeviceViewModel(
@@ -210,9 +213,9 @@ extension DeviceViewModel {
             transfers: [
                 TransferItem(deviceId: "mock_phone", deviceName: "Pixel 9 Pro", filename: "IMG_2041.HEIC", totalBytes: 3_420_000, transferredBytes: 2_100_000, direction: .incoming, status: .transferring, progress: 0.61),
                 TransferItem(deviceId: "mock_phone", deviceName: "Pixel 9 Pro", filename: "Quarterly Report.pdf", totalBytes: 15_420_000, transferredBytes: 15_420_000, direction: .outgoing, status: .completed, progress: 1, timestamp: now.addingTimeInterval(-900)),
-                TransferItem(deviceId: "mock_phone", deviceName: "Pixel 9 Pro", filename: "recording.m4a", totalBytes: 820_000, direction: .incoming, status: .failed("Connection lost"), timestamp: now.addingTimeInterval(-4000))
+                TransferItem(deviceId: "mock_phone", deviceName: "Pixel 9 Pro", filename: "Boarding Pass.pdf", totalBytes: 820_000, transferredBytes: 820_000, direction: .incoming, status: .completed, progress: 1, timestamp: now.addingTimeInterval(-4000))
             ],
-            smsThreads: [alex, bank],
+            smsThreads: [alex, mom, sam],
             commands: RemoteCommand.defaultCommands,
             notifications: [
                 PhoneNotification(id: "n1", deviceId: "mock_phone", appName: "WhatsApp", title: "Alex Smith", text: "Are we meeting at 4 PM today?", date: now.addingTimeInterval(-120), replyId: "r1", isDismissable: true),
