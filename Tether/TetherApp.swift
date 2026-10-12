@@ -26,6 +26,8 @@ struct TetherApp: App {
         TetherService.shared.start()
         // Receive what's shared from the Share menu
         ShareInbox.shared.start()
+        // Look for a newer release once a day
+        UpdateController.shared.start()
     }
 
     var body: some Scene {

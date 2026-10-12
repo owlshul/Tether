@@ -26,7 +26,13 @@ It is written entirely in Swift and SwiftUI, with no Qt, no Electron and no thir
 
 ## Download
 
-Get the latest release from the **[Releases page](https://github.com/subhashhhhhh/Tether/releases/latest)**. There are two downloads; pick the one for your Mac:
+The easiest way is [Homebrew](https://brew.sh), which also skips the "can't be opened" warning described below:
+
+```bash
+brew install --cask subhashhhhhh/tether/tether
+```
+
+Or get the latest release from the **[Releases page](https://github.com/subhashhhhhh/Tether/releases/latest)**. There are two downloads; pick the one for your Mac:
 
 | Your Mac | Download |
 | --- | --- |
@@ -34,6 +40,8 @@ Get the latest release from the **[Releases page](https://github.com/subhashhhhh
 | Intel | `Tether-<version>-Intel.dmg` |
 
 Not sure? Apple menu → **About This Mac**: it says **Chip** on Apple Silicon and **Processor** on Intel. Tether needs **macOS 15 Sequoia** or later.
+
+Once installed, Tether keeps itself up to date: it checks for a new version once a day, or whenever you choose **Tether › Check for Updates…**, and installs it in place.
 
 On your phone, install **KDE Connect** from [Google Play](https://play.google.com/store/apps/details?id=org.kde.kdeconnect_tp) or [F-Droid](https://f-droid.org/packages/org.kde.kdeconnect_tp/).
 
@@ -89,11 +97,12 @@ Measured in October 2026 on an Apple Silicon Mac: Tether's numbers come from the
 - **No cloud.** Your phone and Mac talk directly over your local network, or over your own Tailscale network. There are no Tether servers, accounts, analytics or telemetry.
 - **Encrypted.** Every connection and file transfer uses TLS.
 - **Pinned to your phone.** Pairing saves your phone's certificate, and every later connection and file transfer must present that exact certificate. A device that only pretends to be your phone is refused.
+- **Updates are verified.** Every release is signed with the same certificate, and Tether only installs an update signed with the certificate it was signed with itself. See [docs/signing.md](docs/signing.md).
 - **Your Mac's identity stays private.** Tether's certificate and key live in `~/Library/Application Support/Tether`, readable only by your user account, and are loaded into memory rather than the keychain.
 
 ## Install and pair
 
-1. Open the disk image and drag **Tether** into **Applications**.
+1. Install with Homebrew, or open the disk image and drag **Tether** into **Applications**.
 2. Open Tether. It lives in the menu bar.
 3. On your phone, open **KDE Connect** and tap your Mac in the device list. Tether asks you to confirm: click **Pair**.
 
@@ -101,7 +110,7 @@ Your phone shows up under **Nearby** in Tether's sidebar too, if you'd rather st
 
 ### "Tether can't be opened"
 
-Tether isn't notarized by Apple (that needs a paid developer account), so macOS blocks it the first time:
+Tether isn't notarized by Apple (that needs a paid developer account), so macOS blocks a downloaded copy the first time. Homebrew installs aren't affected. Otherwise:
 
 1. Try to open Tether, then close the warning.
 2. Open **System Settings → Privacy & Security**, scroll to **Security** and click **Open Anyway**.
@@ -129,6 +138,8 @@ xcodebuild -project Tether.xcodeproj -scheme Tether -configuration Release -deri
 # Build the two release disk images (Apple Silicon and Intel) into dist/
 scripts/release.sh
 ```
+
+`release.sh` signs with the maintainer's "Tether Self-Signed" certificate; see [docs/signing.md](docs/signing.md) for why, and for testing the updater with `scripts/test-updater.sh`.
 
 ### How it works
 

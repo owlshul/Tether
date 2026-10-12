@@ -235,6 +235,12 @@ public final class NotificationPlugin: NSObject, ObservableObject, TetherPlugin,
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        if response.notification.request.content.categoryIdentifier == UpdateController.notificationCategory {
+            Task { @MainActor in UpdateController.shared.showWindow() }
+            completionHandler()
+            return
+        }
+
         if response.actionIdentifier == "TETHER_PAIR_ACCEPT_ACTION" {
             DispatchQueue.main.async {
                 TetherService.shared.acceptIncomingPairRequest()

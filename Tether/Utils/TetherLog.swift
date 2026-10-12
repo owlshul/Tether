@@ -14,7 +14,7 @@ private let dateFormatter: ISO8601DateFormatter = {
     return formatter
 }()
 
-public func TetherLog(_ message: String) {
+nonisolated public func TetherLog(_ message: String) {
     let timestamp = dateFormatter.string(from: Date())
     let formatted = "[\(timestamp)] \(message)\n"
     print(formatted, terminator: "")

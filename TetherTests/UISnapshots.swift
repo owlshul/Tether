@@ -55,6 +55,24 @@ import AppKit
                          titled: false, to: dir.appendingPathComponent("menubar-pair-light.png"))
         try await render(SettingsView(viewModel: .mock()), size: CGSize(width: 560, height: 500), dark: false,
                          to: dir.appendingPathComponent("settings-light.png"))
+        let release = AvailableRelease(
+            version: AppVersion("1.6")!, tag: "v1.6",
+            notes: ReleaseFeed.changelog(from: try String(contentsOfFile: #filePath.replacingOccurrences(
+                of: "TetherTests/UISnapshots.swift", with: "dist/notes-1.5.md"), encoding: .utf8)),
+            pageURL: ReleaseFeed.releasesPage, archiveURL: ReleaseFeed.releasesPage,
+            archiveSize: 2_900_000, archiveSHA256: nil)
+        let updateStates: [(String, UpdateController.State)] = [
+            ("available", .available(release)),
+            ("installing", .installing(release, .downloading(received: 1_200_000, expected: 2_900_000))),
+            ("uptodate", .upToDate),
+            ("failed", .failed("Couldn't check for updates. The Internet connection appears to be offline.")),
+        ]
+        for (name, state) in updateStates {
+            UpdateController.shared.setPreviewState(state)
+            try await render(UpdateWindowView(controller: .shared), size: CGSize(width: 480, height: name == "available" || name == "installing" ? 400 : 160),
+                             dark: name == "installing", to: dir.appendingPathComponent("update-\(name).png"))
+        }
+
         for dark in [false, true] {
             try await render(AboutSettings(), size: CGSize(width: 560, height: 460), dark: dark,
                              to: dir.appendingPathComponent("about-\(dark ? "dark" : "light").png"))

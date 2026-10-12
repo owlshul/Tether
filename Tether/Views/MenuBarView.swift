@@ -44,6 +44,11 @@ public struct MenuBarView: View {
                 .padding(.horizontal, 6)
 
             VStack(spacing: 0) {
+                if let release = UpdateController.shared.availableRelease {
+                    MenuRow(title: "Update to Tether \(release.version)…", systemImage: "arrow.down.circle") {
+                        UpdateController.shared.showWindow()
+                    }
+                }
                 MenuRow(title: "Open Tether", systemImage: "macwindow") { openMainWindow() }
                 MenuRow(title: "Settings…", systemImage: "gearshape") {
                     openSettings()

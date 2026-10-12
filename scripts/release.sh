@@ -6,7 +6,12 @@
 #   scripts/release.sh --publish  also create the GitHub release for this version
 #
 # The version comes from the Xcode project (MARKETING_VERSION). Release notes
-# for --publish are read from dist/notes-<version>.md.
+# for --publish are read from dist/notes-<version>.md: the changelog only; the
+# download and install instructions are appended here.
+#
+# Every build is signed with the "Tether Self-Signed" certificate in the login
+# keychain (docs/signing.md). The in-app updater only installs a download signed
+# with the same certificate as the running app, so it must never change.
 
 set -euo pipefail
 
@@ -22,6 +27,11 @@ MIN_MACOS=$(xcodebuild -project Tether.xcodeproj -target Tether -configuration R
   | awk -F' = ' '/ MACOSX_DEPLOYMENT_TARGET = / { print $2; exit }')
 [[ -n "$VERSION" ]] || { echo "Could not read MARKETING_VERSION" >&2; exit 1; }
 
+IDENTITY="Tether Self-Signed"
+TAP_REPO="subhashhhhhh/homebrew-tether"
+security find-identity -p codesigning | grep -q "\"$IDENTITY\"" \
+  || { echo "The \"$IDENTITY\" signing identity isn't in the keychain (see docs/signing.md)" >&2; exit 1; }
+
 mkdir -p "$DIST"
 echo "Tether $VERSION (macOS $MIN_MACOS+)"
 
@@ -34,7 +44,9 @@ for pair in "arm64 AppleSilicon" "x86_64 Intel"; do
 
   xcodebuild -project Tether.xcodeproj -scheme Tether -configuration Release \
     -destination 'generic/platform=macOS' -derivedDataPath "$derived" \
-    ARCHS="$arch" ONLY_ACTIVE_ARCH=NO build -quiet
+    ARCHS="$arch" ONLY_ACTIVE_ARCH=NO \
+    CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$IDENTITY" DEVELOPMENT_TEAM="" \
+    OTHER_CODE_SIGN_FLAGS="--timestamp=none" build -quiet
 
   app="$derived/Build/Products/Release/Tether.app"
   binary="$app/Contents/MacOS/Tether"
@@ -45,6 +57,15 @@ for pair in "arm64 AppleSilicon" "x86_64 Intel"; do
   minos=$(vtool -show-build "$binary" | awk '/minos/ { print $2; exit }')
   [[ "$minos" == "$MIN_MACOS" ]] || { echo "Expected minimum macOS $MIN_MACOS, got $minos" >&2; exit 1; }
   codesign --verify --deep --strict "$app"
+  for code in "$app" "$app/Contents/PlugIns/TetherShare.appex"; do
+    codesign -dvv "$code" 2>&1 | grep -q "Authority=$IDENTITY" \
+      || { echo "$code isn't signed with $IDENTITY" >&2; exit 1; }
+  done
+
+  # The updater downloads the zip; people download the disk image.
+  zip="$DIST/Tether-$VERSION-$label.zip"
+  rm -f "$zip"
+  ditto -c -k --keepParent "$app" "$zip"
 
   staging="$BUILD/dmg-$arch"
   mkdir -p "$staging"
@@ -57,18 +78,53 @@ for pair in "arm64 AppleSilicon" "x86_64 Intel"; do
     -format UDZO -imagekey zlib-level=9 "$dmg"
   hdiutil verify -quiet "$dmg"
   echo "    $(basename "$dmg")  $(du -h "$dmg" | cut -f1 | xargs)"
+  echo "    $(basename "$zip")  $(du -h "$zip" | cut -f1 | xargs)"
 done
 
 echo "\n==> SHA-256"
-(cd "$DIST" && shasum -a 256 "Tether-$VERSION-AppleSilicon.dmg" "Tether-$VERSION-Intel.dmg" | tee "SHA256SUMS-$VERSION.txt")
+assets=(Tether-$VERSION-AppleSilicon.dmg Tether-$VERSION-Intel.dmg Tether-$VERSION-AppleSilicon.zip Tether-$VERSION-Intel.zip)
+(cd "$DIST" && shasum -a 256 $assets | tee "SHA256SUMS-$VERSION.txt")
 
 if [[ "${1:-}" == "--publish" ]]; then
   notes="$DIST/notes-$VERSION.md"
   [[ -f "$notes" ]] || { echo "Missing $notes" >&2; exit 1; }
+  body="$BUILD/body.md"
+  {
+    cat "$notes"
+    # The app shows the notes above this marker and drops the rest.
+    print "\n<!-- tether:install -->\n\n---\n"
+    print "### ⬇️ Install\n"
+    print "**Homebrew** (recommended; no Gatekeeper prompt):"
+    print '```bash\nbrew install --cask subhashhhhhh/tether/tether\n```\n'
+    print "**Or download the disk image for your Mac:**"
+    print "- Apple Silicon (M1 and later): \`Tether-$VERSION-AppleSilicon.dmg\`"
+    print "- Intel: \`Tether-$VERSION-Intel.dmg\`\n"
+    print "Not sure which you have? Apple menu → **About This Mac** → **Chip** (Apple Silicon) or **Processor** (Intel). Tether needs macOS 15 Sequoia or later.\n"
+    print "Tether is open source and isn't notarized by Apple, so the first time you open a downloaded copy macOS blocks it. Open **System Settings → Privacy & Security**, scroll to **Security** and click **Open Anyway**, or run:"
+    print '```bash\nxattr -cr /Applications/Tether.app\n```\n'
+    print "Already on Tether 1.5.1 or later? It updates itself from **Tether › Check for Updates…**\n"
+    print "Checksums are in \`SHA256SUMS-$VERSION.txt\`."
+  } > "$body"
+
   echo "\n==> Publishing v$VERSION"
   gh release create "v$VERSION" \
-    "$DIST/Tether-$VERSION-AppleSilicon.dmg" \
-    "$DIST/Tether-$VERSION-Intel.dmg" \
+    "${assets[@]/#/$DIST/}" \
     "$DIST/SHA256SUMS-$VERSION.txt" \
-    --target main --title "Tether $VERSION" --notes-file "$notes"
+    --target main --title "Tether $VERSION" --notes-file "$body"
+
+  echo "\n==> Updating the Homebrew cask"
+  sha_arm=$(shasum -a 256 "$DIST/Tether-$VERSION-AppleSilicon.dmg" | cut -d' ' -f1)
+  sha_intel=$(shasum -a 256 "$DIST/Tether-$VERSION-Intel.dmg" | cut -d' ' -f1)
+  tap="$BUILD/tap"
+  gh repo clone "$TAP_REPO" "$tap" -- --quiet --depth 1
+  sed -E -i '' \
+    -e "s/^  version \".*\"/  version \"$VERSION\"/" \
+    -e "s/^  sha256 arm: +\"[0-9a-f]*\",/  sha256 arm:   \"$sha_arm\",/" \
+    -e "s/^         intel: \"[0-9a-f]*\"/         intel: \"$sha_intel\"/" \
+    "$tap/Casks/tether.rb"
+  grep -q "$sha_arm" "$tap/Casks/tether.rb" && grep -q "$sha_intel" "$tap/Casks/tether.rb" \
+    || { echo "Couldn't update $tap/Casks/tether.rb" >&2; exit 1; }
+  git -C "$tap" commit -qam "Tether $VERSION"
+  git -C "$tap" push -q
+  echo "    $TAP_REPO → $VERSION"
 fi

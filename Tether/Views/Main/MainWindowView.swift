@@ -282,6 +282,7 @@ struct TetherCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
             Button("About Tether") { TetherCredits.showAboutPanel() }
+            Button("Check for Updates…") { UpdateController.shared.checkForUpdates() }
         }
 
         CommandGroup(after: .newItem) {

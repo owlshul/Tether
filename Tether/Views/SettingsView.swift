@@ -72,6 +72,8 @@ enum TetherCredits {
 }
 
 struct AboutSettings: View {
+    @Bindable private var updates = UpdateController.shared
+
     var body: some View {
         Form {
             Section {
@@ -89,6 +91,16 @@ struct AboutSettings: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
+            }
+
+            Section {
+                Toggle("Check for updates automatically", isOn: $updates.checksAutomatically)
+                LabeledContent {
+                    Button("Check Now") { updates.checkForUpdates() }
+                } label: {
+                    Text("Software update")
+                    Text(lastCheckedText)
+                }
             }
 
             Section {
@@ -111,6 +123,14 @@ struct AboutSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var lastCheckedText: String {
+        if let release = updates.availableRelease {
+            return "Tether \(release.version) is available."
+        }
+        guard let date = updates.lastChecked else { return "Not checked yet." }
+        return "Last checked \(date.formatted(.relative(presentation: .named)))."
     }
 }
 
