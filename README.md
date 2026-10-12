@@ -10,11 +10,11 @@
 
 <p align="center">
   <a href="https://github.com/subhashhhhhh/Tether/releases"><img src="https://img.shields.io/github/v/release/subhashhhhhh/Tether?style=flat-square&color=blue" alt="Release" /></a>
-  <img src="https://img.shields.io/badge/DMG%20Size-1.55%20MB-brightgreen?style=flat-square" alt="DMG Size" />
-  <img src="https://img.shields.io/badge/Installed%20Size-5.0%20MB-brightgreen?style=flat-square" alt="Installed Size" />
+  <img src="https://img.shields.io/badge/DMG%20Size-3.3%20MB-brightgreen?style=flat-square" alt="DMG Size" />
+  <img src="https://img.shields.io/badge/Installed%20Size-10%20MB-brightgreen?style=flat-square" alt="Installed Size" />
   <img src="https://img.shields.io/badge/Idle%20RAM-~15%20MB-brightgreen?style=flat-square" alt="Idle RAM" />
   <img src="https://img.shields.io/badge/Idle%20CPU-0.0%25-blue?style=flat-square" alt="Idle CPU" />
-  <img src="https://img.shields.io/badge/Platform-macOS%2027%2B-black?style=flat-square" alt="Platform" />
+  <img src="https://img.shields.io/badge/Platform-macOS%2015%2B-black?style=flat-square" alt="Platform" />
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift" />
   <img src="https://img.shields.io/badge/UI-SwiftUI%20%2B%20Observation-purple?style=flat-square" alt="SwiftUI" />
   <img src="https://img.shields.io/badge/License-GPL--2.0-green?style=flat-square" alt="License" />
@@ -38,8 +38,8 @@ The official KDE Connect macOS release relies on Qt 6, KDE Frameworks, OpenSSL, 
 
 | Metric | Official KDE Connect (macOS) | Tether | Advantage |
 | :--- | :--- | :--- | :--- |
-| **Download / DMG Size** | ~90 MB | **1.55 MB** | **~98% smaller** |
-| **Installed App Size** | ~370 MB | **5.0 MB** | **~98.6% smaller** |
+| **Download / DMG Size** | ~90 MB | **3.3 MB** | **~96% smaller** |
+| **Installed App Size** | ~370 MB | **10 MB** (universal) | **~97% smaller** |
 | **Idle Memory (RAM)** | ~150 – 300 MB | **~15 – 25 MB** | **~90% less RAM** |
 | **Idle CPU Usage** | 1.0 – 5.0% | **0.0%** | **Zero battery drain** |
 | **External Dependencies** | Qt 6, D-Bus, OpenSSL | **Zero** (Pure Apple Frameworks) | **No background bloat** |
@@ -50,7 +50,7 @@ The official KDE Connect macOS release relies on Qt 6, KDE Frameworks, OpenSSL, 
 1. **Zero Web / Cross-Platform Runtimes**: No Chromium, Electron, Node.js, or Qt layers.
 2. **Native Network & TLS Stack**: BSD sockets and Apple's `Security.framework` for TLS. (KDE Connect upgrades an open TCP connection to TLS after a plaintext handshake, which `Network.framework` cannot do.)
 3. **ABI-Stable Swift Runtime**: Leverages the native Swift standard library already preinstalled in macOS.
-4. **Single Optimized Mach-O Binary**: The entire app bundle is just a compiled 5.0 MB ARM64 binary that compresses down to **1.55 MB** inside the disk image.
+4. **Single Universal Binary**: One compiled Mach-O for Apple Silicon and Intel, about 10 MB installed and 3.3 MB as a compressed disk image.
 
 ---
 
@@ -99,7 +99,7 @@ The official KDE Connect macOS release relies on Qt 6, KDE Frameworks, OpenSSL, 
 
 ## 🛠️ System Requirements
 
-- **Mac**: macOS 27 or newer.
+- **Mac**: macOS 15 (Sequoia) or newer, on Apple Silicon or Intel.
 - **Phone**: Android device running the official **KDE Connect** app (available on [Google Play](https://play.google.com/store/apps/details?id=org.kde.kdeconnect_tp) or [F-Droid](https://f-droid.org/packages/org.kde.kdeconnect_tp/)).
 - **Network**: Both devices must be connected to the same local Wi-Fi network (or reachable via local subnet / VPN like Tailscale).
 
@@ -107,7 +107,7 @@ The official KDE Connect macOS release relies on Qt 6, KDE Frameworks, OpenSSL, 
 
 ## 📥 Installation
 
-1. Download the latest **`Tether-1.3.dmg`** from the [GitHub Releases](https://github.com/subhashhhhhh/Tether/releases) page.
+1. Download the latest **`Tether-1.3.1.dmg`** from the [GitHub Releases](https://github.com/subhashhhhhh/Tether/releases) page.
 2. Open the downloaded `.dmg` file.
 3. Drag **Tether.app** into your **Applications** folder.
 4. Launch **Tether**.

@@ -28,7 +28,7 @@ A fully native Swift/SwiftUI client with no third-party dependencies, about 1.5 
 
 ## Capabilities and Constraints
 
-- Target is **macOS** (deployment target macOS 27), not iOS. `ios` is recorded above only so Apple-native guidance loads; apply the macOS Human Interface Guidelines and native AppKit/SwiftUI conventions, not iPhone patterns.
+- Target is **macOS** (macOS 15 Sequoia or newer, universal for Apple Silicon and Intel), not iOS. `ios` is recorded above only so Apple-native guidance loads; apply the macOS Human Interface Guidelines and native AppKit/SwiftUI conventions, not iPhone patterns.
 - Must stay compatible with the stock KDE Connect Android app (protocol v8). No custom phone app; features are bounded by what that protocol and app support.
 - Pure Swift and SwiftUI on Apple frameworks; no third-party dependencies or runtimes. Keep the app small and idle-cheap.
 - Local-only: peer-to-peer TLS on the local network, devices pinned by certificate fingerprint. No cloud, accounts, relays or telemetry.
