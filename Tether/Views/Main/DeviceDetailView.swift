@@ -191,14 +191,14 @@ struct OfflineDeviceView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text("Open KDE Connect on \(device.name) and make sure it's on the same network as this Mac. It reconnects automatically.")
+            Text("Open KDE Connect on \(device.name) and make sure it's on the same Wi-Fi as this Mac, or that both are connected to Tailscale. It reconnects automatically.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
             HStack(spacing: 12) {
                 Button("Look Again") { appModel.refreshDiscovery() }
-                Button("Connect by IP…", action: onConnectByIP)
+                Button("Connect by Address…", action: onConnectByIP)
             }
             .controlSize(.large)
 
@@ -257,7 +257,7 @@ struct OnboardingView: View {
                     Text("Looking for devices…")
                         .foregroundStyle(.secondary)
                 }
-                Button("Phone not showing up? Connect by IP Address…", action: onConnectByIP)
+                Button("Phone not showing up? Connect by Address…", action: onConnectByIP)
                     .buttonStyle(.link)
             }
         }
@@ -338,56 +338,80 @@ struct PairRequestSheet: View {
 }
 
 struct ConnectByIPSheet: View {
-    let onConnect: (String) -> Void
+    /// Resolves and adds the address; false if it couldn't be resolved.
+    let onConnect: (String) async -> Bool
     @Environment(\.dismiss) private var dismiss
     @State private var address = ""
+    @State private var isResolving = false
+    @State private var failedAddress: String?
     @FocusState private var isFocused: Bool
 
     private var trimmed: String { address.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    /// The connection layer is IPv4-only, so validate for that up front.
-    private var isValid: Bool {
-        let parts = trimmed.split(separator: ".", omittingEmptySubsequences: false)
-        return parts.count == 4 && parts.allSatisfy { part in
-            guard let value = Int(part), (0...255).contains(value) else { return false }
-            return String(value) == part
-        }
+    /// An IPv4 address or a host name such as a Tailscale MagicDNS name.
+    private var isPlausible: Bool {
+        guard !trimmed.isEmpty, trimmed.count <= 253, !trimmed.hasPrefix("."), !trimmed.hasSuffix("..") else { return false }
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: ".-"))
+        return trimmed.unicodeScalars.allSatisfy(allowed.contains)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Connect by IP Address")
+                Text("Connect by Address")
                     .font(.title3.bold())
-                Text("Use this when your network blocks discovery. On your phone, the address is in Settings › About phone › Status.")
+                Text("Use your phone's Wi-Fi IP address (Settings › About phone › Status), or its Tailscale address or name to connect from anywhere.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            TextField("IP address", text: $address, prompt: Text("192.168.1.45"))
-                .textFieldStyle(.roundedBorder)
-                .font(.system(.body, design: .monospaced))
-                .focused($isFocused)
-                .onSubmit(connect)
+            VStack(alignment: .leading, spacing: 6) {
+                TextField("Address", text: $address, prompt: Text("192.168.1.45 or phone.tailnet.ts.net"))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .autocorrectionDisabled()
+                    .focused($isFocused)
+                    .onSubmit(connect)
+                    .onChange(of: address) { failedAddress = nil }
+
+                if let failedAddress {
+                    Text("Couldn't find “\(failedAddress)”. Check the address, and that Tailscale is connected if you're using it.")
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
 
             HStack {
+                if isResolving {
+                    ProgressView().controlSize(.small)
+                }
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 Button("Connect", action: connect)
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
-                    .disabled(!isValid)
+                    .disabled(!isPlausible || isResolving)
             }
         }
         .padding(24)
-        .frame(width: 400)
+        .frame(width: 420)
         .onAppear { isFocused = true }
     }
 
     private func connect() {
-        guard isValid else { return }
-        onConnect(trimmed)
-        dismiss()
+        guard isPlausible, !isResolving else { return }
+        let target = trimmed
+        isResolving = true
+        Task {
+            let added = await onConnect(target)
+            isResolving = false
+            if added {
+                dismiss()
+            } else {
+                failedAddress = target
+            }
+        }
     }
 }

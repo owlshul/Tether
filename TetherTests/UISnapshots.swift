@@ -49,7 +49,7 @@ import AppKit
         let request = TetherAppModel.mockPairRequest().incomingPairRequest!
         try await render(PairRequestSheet(request: request, onAccept: {}, onDecline: {}), size: CGSize(width: 420, height: 440),
                          dark: false, titled: false, to: dir.appendingPathComponent("pair-request-light.png"))
-        try await render(ConnectByIPSheet { _ in }, size: CGSize(width: 400, height: 200),
+        try await render(ConnectByIPSheet { _ in true }, size: CGSize(width: 400, height: 200),
                          dark: false, titled: false, to: dir.appendingPathComponent("connect-ip-light.png"))
         try await render(MenuBarView(appModel: .mockPairRequest()), size: CGSize(width: 320, height: 560), dark: false,
                          titled: false, to: dir.appendingPathComponent("menubar-pair-light.png"))

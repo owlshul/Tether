@@ -167,18 +167,33 @@ public final class TetherAppModel {
             connected.append(vm)
         }
 
-        for (pairedId, paired) in trustStore.pairedDevices where !connectedIds.contains(pairedId) {
+        // Connected but not verified: never paired, or presenting a different
+        // certificate than the pinned one (e.g. KDE Connect was reinstalled).
+        // Either way the fix is to pair, so these show as nearby, not offline.
+        let unverifiedIds = Set(service.connectedDevices.compactMap { id, conn in
+            !conn.isDisconnected && conn.pairState != .paired ? id : nil
+        })
+
+        for (pairedId, paired) in trustStore.pairedDevices where !connectedIds.contains(pairedId) && !unverifiedIds.contains(pairedId) {
             let vm = device(id: pairedId, name: paired.deviceName, type: paired.deviceType, status: .offline)
             vm.lastSeen = paired.lastSeenDate
             vm.onUnpair = { [weak self] in self?.unpair(deviceId: pairedId) }
             offline.append(vm)
         }
 
-        let knownIds = connectedIds.union(trustStore.pairedDevices.keys)
-        for disc in service.discoveredDevices where !knownIds.contains(disc.deviceId) {
-            let vm = device(id: disc.deviceId, name: disc.deviceName, type: disc.deviceType, status: .available)
-            let discId = disc.deviceId
-            vm.onPair = { [weak self] in self?.pair(with: discId) }
+        // Nearby, unpaired: anything heard through discovery, plus devices that
+        // connected straight in without broadcasting first (common over
+        // Tailscale or when the phone was given this Mac's address).
+        var nearby: [String: DeviceInfo] = [:]
+        for disc in service.discoveredDevices { nearby[disc.deviceId] = disc }
+        for (deviceId, conn) in service.connectedDevices where !conn.isDisconnected && conn.pairState != .paired {
+            if let info = conn.peerDeviceInfo { nearby[deviceId] = info }
+        }
+        let knownIds = connectedIds.union(Set(trustStore.pairedDevices.keys).subtracting(unverifiedIds))
+        for info in nearby.values where !knownIds.contains(info.deviceId) {
+            let vm = device(id: info.deviceId, name: info.deviceName, type: info.deviceType, status: .available)
+            let nearbyId = info.deviceId
+            vm.onPair = { [weak self] in self?.pair(with: nearbyId) }
             available.append(vm)
         }
 
@@ -300,8 +315,10 @@ public final class TetherAppModel {
     }
 
     public func pair(with deviceId: String) {
-        if let dev = TetherService.shared.discoveredDevices.first(where: { $0.deviceId == deviceId }) {
-            TetherService.shared.requestPair(with: dev)
+        let service = TetherService.shared
+        if let info = service.connectedDevices[deviceId]?.peerDeviceInfo
+            ?? service.discoveredDevices.first(where: { $0.deviceId == deviceId }) {
+            service.requestPair(with: info)
         }
     }
 
@@ -315,8 +332,10 @@ public final class TetherAppModel {
         checkNotificationStatus()
     }
 
-    public func addManualPeer(ip: String) {
-        TetherService.shared.addManualPeer(ip: ip)
+    /// Adds a device by IPv4 address or host name; false if the name doesn't resolve.
+    public func addManualPeer(address: String) async -> Bool {
+        guard !isMockMode else { return true }
+        return await TetherService.shared.addManualPeer(address: address)
     }
 
     public func checkNotificationStatus() {

@@ -506,7 +506,7 @@ public final class DeviceConnection: @unchecked Sendable {
             // otherwise anyone spoofing the device ID could unpair the real phone.
             TetherLog("[DeviceConnection] Peer rejected or unpaired from us")
             if pairState == .paired {
-                TrustStore.shared.remove(deviceId: info.deviceId)
+                TrustStore.shared.remove(deviceId: info.deviceId, reason: "the device unpaired from this Mac")
             }
             self.pairState = .notPaired
             delegate?.deviceConnection(self, didUpdatePairState: .notPaired)
@@ -567,7 +567,7 @@ public final class DeviceConnection: @unchecked Sendable {
         let packet = NetworkPacket(type: "kdeconnect.pair", body: ["pair": false])
         send(packet: packet)
         self.pairState = .notPaired
-        TrustStore.shared.remove(deviceId: info.deviceId)
+        TrustStore.shared.remove(deviceId: info.deviceId, reason: "unpaired on this Mac while connected")
         delegate?.deviceConnection(self, didUpdatePairState: .notPaired)
         connectionQueue.asyncAfter(deadline: .now() + 0.2) { [weak self] in
             self?.disconnect()

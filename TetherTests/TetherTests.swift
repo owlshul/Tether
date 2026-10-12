@@ -71,7 +71,7 @@ struct TetherTests {
         let fetched = store.pairedDevice(for: testId)
         #expect(fetched?.deviceName == "Test Android")
 
-        store.remove(deviceId: testId)
+        store.remove(deviceId: testId, reason: "unit test cleanup")
         #expect(!store.isTrusted(deviceId: testId))
     }
 
@@ -195,6 +195,34 @@ struct TetherTests {
         let dir = FileManager.default.temporaryDirectory
         let target = SafeFilename.uniqueURL(in: dir, for: "../../escape.txt")
         #expect(target.deletingLastPathComponent().standardizedFileURL.path == dir.standardizedFileURL.path)
+    }
+
+    /// Only the user's own, online phones get our identity: shared-in machines,
+    /// desktops and offline devices are skipped, and IPv6 addresses ignored.
+    @Test func testTailscalePeerFiltering() throws {
+        let json = """
+        {
+          "BackendState": "Running",
+          "Self": { "UserID": 7, "TailscaleIPs": ["100.114.2.27", "fd7a::1"] },
+          "Peer": {
+            "a": { "HostName": "pixel", "OS": "android", "Online": true, "UserID": 7, "TailscaleIPs": ["fd7a::2", "100.123.228.122"] },
+            "b": { "HostName": "friends-phone", "OS": "android", "Online": true, "UserID": 99, "TailscaleIPs": ["100.64.0.9"] },
+            "c": { "HostName": "server", "OS": "linux", "Online": true, "UserID": 7, "TailscaleIPs": ["100.127.50.25"] },
+            "d": { "HostName": "old-phone", "OS": "android", "Online": false, "UserID": 7, "TailscaleIPs": ["100.64.0.10"] },
+            "e": { "HostName": "ipad", "OS": "iOS", "Online": true, "UserID": 7, "TailscaleIPs": ["100.64.0.11"] }
+          }
+        }
+        """
+        let status = TailscaleDiscovery.parse(Data(json.utf8))
+        guard case .running(let selfIP, let phones) = status else {
+            Issue.record("expected running, got \(status)")
+            return
+        }
+        #expect(selfIP == "100.114.2.27")
+        #expect(phones.map(\.ip) == ["100.64.0.11", "100.123.228.122"])
+
+        let stopped = TailscaleDiscovery.parse(Data(#"{"BackendState":"Stopped"}"#.utf8))
+        #expect(stopped == .notRunning)
     }
 
     /// A packet type must be advertised in the direction it actually travels. The

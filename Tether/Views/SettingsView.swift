@@ -61,6 +61,8 @@ private struct GeneralSettings: View {
                 }
             }
 
+            TailscaleSection(viewModel: viewModel)
+
             Section("Identity") {
                 LabeledContent("Device ID") {
                     Text(viewModel.deviceId)
@@ -78,6 +80,45 @@ private struct GeneralSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+// MARK: - Tailscale
+
+private struct TailscaleSection: View {
+    @Bindable var viewModel: SettingsViewModel
+
+    var body: some View {
+        Section {
+            Toggle("Find devices over Tailscale", isOn: $viewModel.isTailscaleDiscoveryEnabled)
+                .disabled(!isRunning)
+            LabeledContent("Status") {
+                Text(statusText)
+                    .multilineTextAlignment(.trailing)
+            }
+        } header: {
+            Text("Tailscale")
+        } footer: {
+            Text("Connects to your phone from anywhere when both devices are on your Tailscale network. Tether only contacts Android and iOS devices signed in to your own Tailscale account.")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var isRunning: Bool {
+        if case .running = viewModel.tailscaleStatus { return true }
+        return false
+    }
+
+    private var statusText: String {
+        switch viewModel.tailscaleStatus {
+        case .notInstalled:
+            return "Not installed"
+        case .notRunning:
+            return "Not connected"
+        case .running(let selfIP, let phones):
+            if phones.isEmpty { return "Connected as \(selfIP), no phones online" }
+            return "Connected as \(selfIP) · \(phones.map(\.name).formatted(.list(type: .and)))"
+        }
     }
 }
 
@@ -167,7 +208,7 @@ private struct PermissionsSettings: View {
                     }
                 }
             } footer: {
-                Text("Tether only talks to devices on your local network. Nothing is sent to a server.")
+                Text("Tether talks to your devices directly, over your local network or Tailscale. Nothing is sent to a server.")
                     .foregroundStyle(.secondary)
             }
 

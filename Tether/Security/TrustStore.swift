@@ -35,10 +35,17 @@ public final class TrustStore: ObservableObject, @unchecked Sendable {
     }
 
     private static func decode(key: String) -> [PairedDevice]? {
-        guard let data = UserDefaults.standard.data(forKey: key),
-              let list = try? JSONDecoder().decode([PairedDevice].self, from: data),
-              !list.isEmpty else { return nil }
-        return list
+        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
+        do {
+            let list = try JSONDecoder().decode([PairedDevice].self, from: data)
+            return list.isEmpty ? nil : list
+        } catch {
+            // Never silently treat unreadable pairings as "none": that would let
+            // the next save overwrite them. Keep the raw bytes for recovery.
+            TetherLog("[TrustStore] Could not read \(key): \(error)")
+            UserDefaults.standard.set(data, forKey: "\(key)_unreadable_backup")
+            return nil
+        }
     }
 
     private func saveDevices() {
@@ -70,8 +77,11 @@ public final class TrustStore: ObservableObject, @unchecked Sendable {
         }
     }
 
-    public func remove(deviceId: String) {
+    /// Forgets a paired device. `reason` is logged so a lost pairing can always be traced.
+    public func remove(deviceId: String, reason: String) {
         lock.withLock {
+            let name = self.pairedDevices[deviceId]?.deviceName ?? "unknown"
+            TetherLog("[TrustStore] Removing \(name) (\(deviceId)): \(reason)")
             self.pairedDevices.removeValue(forKey: deviceId)
             self.saveDevices()
         }

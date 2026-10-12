@@ -81,7 +81,7 @@ public struct MainWindowView: View {
         }
         .frame(minWidth: 760, minHeight: 520)
         .sheet(isPresented: $appModel.isShowingConnectByIP) {
-            ConnectByIPSheet { appModel.addManualPeer(ip: $0) }
+            ConnectByIPSheet { await appModel.addManualPeer(address: $0) }
         }
         .sheet(item: pairRequestBinding) { request in
             PairRequestSheet(
@@ -183,7 +183,7 @@ struct DeviceSidebar: View {
         .listStyle(.sidebar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Button(action: onConnectByIP) {
-                Label("Connect by IP Address…", systemImage: "plus.circle")
+                Label("Connect by Address…", systemImage: "plus.circle")
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(.rect)
             }
@@ -281,7 +281,7 @@ struct TetherCommands: Commands {
 
     var body: some Commands {
         CommandGroup(after: .newItem) {
-            Button("Connect by IP Address…") {
+            Button("Connect by Address…") {
                 openWindow(id: "main")
                 appModel.isShowingConnectByIP = true
             }

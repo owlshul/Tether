@@ -16,6 +16,7 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
     @Published public private(set) var discoveredDevices: [DeviceInfo] = []
     @Published public private(set) var connectedDevices: [String: DeviceConnection] = [:]
     @Published public var incomingPairRequest: (connection: DeviceConnection, info: DeviceInfo)?
+    @Published public private(set) var tailscaleStatus: TailscaleStatus = .notInstalled
 
     public let trustStore = TrustStore.shared
     public let pingPlugin = PingPlugin()
@@ -35,6 +36,7 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
     public let runCommandPlugin = RunCommandPlugin()
 
     private let udpDiscovery = UDPDiscoveryService()
+    private var tailscaleTimer: DispatchSourceTimer?
     private let tcpListener = TCPListenerService()
     private var discoveredDeviceEndpoints: [String: (host: String, port: Int)] = [:]
     private var connectingDeviceIds = Set<String>()
@@ -42,6 +44,10 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
     private var plugins: [TetherPlugin] = []
     nonisolated(unsafe) private let connectionLock = NSLock()
     nonisolated(unsafe) private var activeDeviceIds = Set<String>()
+    /// Address of each connected device, so discovery doesn't re-announce to it.
+    nonisolated(unsafe) private var activeHosts: [String: String] = [:]
+    /// Connections whose plugins have been started, so each starts exactly once.
+    private var activatedConnections = Set<ObjectIdentifier>()
 
     private init() {
         self.plugins = [
@@ -71,6 +77,7 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
 
         tcpListener.start()
         udpDiscovery.start()
+        startTailscaleDiscovery()
         TetherLog("[TetherService] Service started successfully.")
     }
 
@@ -80,6 +87,8 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
 
         udpDiscovery.stop()
         tcpListener.stop()
+        tailscaleTimer?.cancel()
+        tailscaleTimer = nil
 
         for conn in connectedDevices.values {
             conn.disconnect()
@@ -93,6 +102,7 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
         connectingDeviceIds.removeAll()
         connectionLock.withLock {
             activeDeviceIds.removeAll()
+            activeHosts.removeAll()
         }
         TetherLog("[TetherService] Service stopped.")
     }
@@ -101,6 +111,12 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
     nonisolated public func isDeviceConnected(deviceId: String) -> Bool {
         connectionLock.withLock {
             activeDeviceIds.contains(deviceId)
+        }
+    }
+
+    nonisolated public func connectedHosts() -> Set<String> {
+        connectionLock.withLock {
+            Set(activeHosts.values)
         }
     }
 
@@ -161,6 +177,7 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
 
             self.connectionLock.withLock {
                 self.activeDeviceIds.insert(id)
+                self.activeHosts[id] = connection.host
             }
 
             if let old = self.connectedDevices[id], old !== connection {
@@ -169,23 +186,16 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
                 if let pairReq = self.incomingPairRequest, pairReq.info.deviceId == id {
                     self.incomingPairRequest = (connection: connection, info: pairReq.info)
                 }
-                if connection.pairState == .paired {
-                    for plugin in self.plugins {
-                        plugin.onConnected(connection: connection)
-                    }
-                }
+                self.activatePlugins(for: connection)
+                self.deactivatePlugins(for: old)
                 old.disconnect()
                 return
             }
 
             self.connectedDevices[id] = connection
 
-            // IMPORTANT: Only activate plugins if the device is already paired!
-            if connection.pairState == .paired {
-                for plugin in self.plugins {
-                    plugin.onConnected(connection: connection)
-                }
-            }
+            // Only a verified, paired device gets its plugins started.
+            self.activatePlugins(for: connection)
             TetherLog("[TetherService] Connected to \(connection.peerDeviceInfo?.deviceName ?? id)")
         }
     }
@@ -199,11 +209,10 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
                 if self.connectedDevices[id] === connection {
                     self.connectionLock.withLock {
                         self.activeDeviceIds.remove(id)
+                        self.activeHosts[id] = nil
                     }
                     self.connectedDevices.removeValue(forKey: id)
-                    for plugin in self.plugins {
-                        plugin.onDisconnected(connection: connection)
-                    }
+                    self.deactivatePlugins(for: connection)
                     TetherLog("[TetherService] Disconnected from \(connection.peerDeviceInfo?.deviceName ?? id)")
                 }
             }
@@ -301,18 +310,34 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
                     self.incomingPairRequest = nil
                 }
                 self.dismissPairingRequestNotification(deviceId: info.deviceId)
-                for plugin in self.plugins {
-                    plugin.onConnected(connection: connection)
-                }
+                self.activatePlugins(for: connection)
             } else if state == .notPaired {
                 if let req = self.incomingPairRequest, req.connection === connection {
                     self.incomingPairRequest = nil
                     self.dismissPairingRequestNotification(deviceId: info.deviceId)
                 }
-                for plugin in self.plugins {
-                    plugin.onDisconnected(connection: connection)
-                }
+                self.deactivatePlugins(for: connection)
             }
+        }
+    }
+
+    /// Starts plugins for a connection once: when it is the device's active
+    /// connection and verified as paired. Both conditions can become true in
+    /// either order, so both paths call this.
+    private func activatePlugins(for connection: DeviceConnection) {
+        guard connection.pairState == .paired,
+              let id = connection.peerDeviceInfo?.deviceId,
+              connectedDevices[id] === connection,
+              activatedConnections.insert(ObjectIdentifier(connection)).inserted else { return }
+        for plugin in plugins {
+            plugin.onConnected(connection: connection)
+        }
+    }
+
+    private func deactivatePlugins(for connection: DeviceConnection) {
+        guard activatedConnections.remove(ObjectIdentifier(connection)) != nil else { return }
+        for plugin in plugins {
+            plugin.onDisconnected(connection: connection)
         }
     }
 
@@ -349,15 +374,14 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
         dismissPairingRequestNotification(deviceId: deviceId)
         connectionLock.withLock {
             activeDeviceIds.remove(deviceId)
+            activeHosts[deviceId] = nil
         }
         if let conn = connectedDevices[deviceId] {
             conn.unpair()
-            for plugin in self.plugins {
-                plugin.onDisconnected(connection: conn)
-            }
+            deactivatePlugins(for: conn)
             connectedDevices.removeValue(forKey: deviceId)
         }
-        trustStore.remove(deviceId: deviceId)
+        trustStore.remove(deviceId: deviceId, reason: "unpaired on this Mac")
     }
 
     public func sendPing(to deviceId: String) {
@@ -399,12 +423,54 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
 
     public func refreshDiscovery() {
         udpDiscovery.broadcastPresence(sweepSubnet: true)
+        refreshTailscale()
     }
 
-    public func addManualPeer(ip: String) {
+    /// Adds a peer by IPv4 address or host name (including Tailscale MagicDNS
+    /// names). Returns false if the name doesn't resolve.
+    public func addManualPeer(address: String) async -> Bool {
+        let host = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ip = await Task.detached { HostResolver.ipv4(for: host) }.value
+        guard let ip else {
+            TetherLog("[TetherService] Could not resolve \(host)")
+            return false
+        }
+        TetherLog("[TetherService] Adding manual peer \(host) (\(ip))")
         udpDiscovery.addKnownTarget(ip: ip)
         udpDiscovery.sendDirectPresence(to: ip)
         udpDiscovery.broadcastPresence(sweepSubnet: false)
+        return true
+    }
+
+    // MARK: - Tailscale
+
+    private func startTailscaleDiscovery() {
+        let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+        // Peers come and go as phones sleep or switch networks; a minute keeps
+        // reconnection quick without spawning the CLI constantly.
+        timer.schedule(deadline: .now(), repeating: .seconds(60))
+        timer.setEventHandler { [weak self] in
+            Task { @MainActor in self?.refreshTailscale() }
+        }
+        timer.resume()
+        tailscaleTimer = timer
+    }
+
+    /// Re-reads the tailnet and points discovery at the user's online phones.
+    public func refreshTailscale() {
+        let discovery = udpDiscovery
+        Task.detached(priority: .utility) {
+            let enabled = TailscaleDiscovery.isEnabled
+            let status = TailscaleDiscovery.currentStatus()
+            var targets = Set<String>()
+            if enabled, case .running(_, let phones) = status {
+                targets = Set(phones.map(\.ip))
+            }
+            await MainActor.run { [weak self] in
+                discovery.setTailscaleTargets(targets)
+                if self?.tailscaleStatus != status { self?.tailscaleStatus = status }
+            }
+        }
     }
 
     public func sendFiles(_ urls: [URL], to deviceId: String) {

@@ -10,8 +10,8 @@
 
 <p align="center">
   <a href="https://github.com/subhashhhhhh/Tether/releases"><img src="https://img.shields.io/github/v/release/subhashhhhhh/Tether?style=flat-square&color=blue" alt="Release" /></a>
-  <img src="https://img.shields.io/badge/DMG%20Size-3.3%20MB-brightgreen?style=flat-square" alt="DMG Size" />
-  <img src="https://img.shields.io/badge/Installed%20Size-10%20MB-brightgreen?style=flat-square" alt="Installed Size" />
+  <img src="https://img.shields.io/badge/DMG%20Size-2.3%20MB-brightgreen?style=flat-square" alt="DMG Size" />
+  <img src="https://img.shields.io/badge/Installed%20Size-5.8%20MB-brightgreen?style=flat-square" alt="Installed Size" />
   <img src="https://img.shields.io/badge/Idle%20RAM-~15%20MB-brightgreen?style=flat-square" alt="Idle RAM" />
   <img src="https://img.shields.io/badge/Idle%20CPU-0.0%25-blue?style=flat-square" alt="Idle CPU" />
   <img src="https://img.shields.io/badge/Platform-macOS%2015%2B-black?style=flat-square" alt="Platform" />
@@ -38,8 +38,8 @@ The official KDE Connect macOS release relies on Qt 6, KDE Frameworks, OpenSSL, 
 
 | Metric | Official KDE Connect (macOS) | Tether | Advantage |
 | :--- | :--- | :--- | :--- |
-| **Download / DMG Size** | ~90 MB | **3.3 MB** | **~96% smaller** |
-| **Installed App Size** | ~370 MB | **10 MB** (universal) | **~97% smaller** |
+| **Download / DMG Size** | ~90 MB | **2.3 MB** | **~97% smaller** |
+| **Installed App Size** | ~370 MB | **5.8 MB** | **~98% smaller** |
 | **Idle Memory (RAM)** | ~150 – 300 MB | **~15 – 25 MB** | **~90% less RAM** |
 | **Idle CPU Usage** | 1.0 – 5.0% | **0.0%** | **Zero battery drain** |
 | **External Dependencies** | Qt 6, D-Bus, OpenSSL | **Zero** (Pure Apple Frameworks) | **No background bloat** |
@@ -50,7 +50,7 @@ The official KDE Connect macOS release relies on Qt 6, KDE Frameworks, OpenSSL, 
 1. **Zero Web / Cross-Platform Runtimes**: No Chromium, Electron, Node.js, or Qt layers.
 2. **Native Network & TLS Stack**: BSD sockets and Apple's `Security.framework` for TLS. (KDE Connect upgrades an open TCP connection to TLS after a plaintext handshake, which `Network.framework` cannot do.)
 3. **ABI-Stable Swift Runtime**: Leverages the native Swift standard library already preinstalled in macOS.
-4. **Single Universal Binary**: One compiled Mach-O for Apple Silicon and Intel, about 10 MB installed and 3.3 MB as a compressed disk image.
+4. **One Small Binary per Mac**: Separate Apple Silicon and Intel downloads, each a single compiled Mach-O of about 5.8 MB that compresses to about 2.3 MB.
 
 ---
 
@@ -79,6 +79,11 @@ The official KDE Connect macOS release relies on Qt 6, KDE Frameworks, OpenSSL, 
 - **Virtual Laser Pointer**: Full-screen transparent overlay rendering a high-visibility laser dot for presentations and slide decks.
 - macOS Accessibility integration for smooth, native input synthesis (`CGEvent`).
 
+### 🌍 Tailscale: Connect From Anywhere
+- If Tailscale is running on your Mac and phone, Tether finds your phone on your tailnet automatically, even when you're not on the same Wi-Fi.
+- Only Android and iOS devices signed in to your own Tailscale account are contacted. Tether reads the local `tailscale` CLI and never talks to Tailscale's servers.
+- Turn it off in Settings › General › Tailscale. "Connect by Address…" also accepts Tailscale names such as `phone.tailnet.ts.net`.
+
 ### 💻 Remote Shell Commands
 - Configure custom shell scripts and automation commands on your Mac and trigger them on demand from your phone.
 
@@ -101,13 +106,13 @@ The official KDE Connect macOS release relies on Qt 6, KDE Frameworks, OpenSSL, 
 
 - **Mac**: macOS 15 (Sequoia) or newer, on Apple Silicon or Intel.
 - **Phone**: Android device running the official **KDE Connect** app (available on [Google Play](https://play.google.com/store/apps/details?id=org.kde.kdeconnect_tp) or [F-Droid](https://f-droid.org/packages/org.kde.kdeconnect_tp/)).
-- **Network**: Both devices must be connected to the same local Wi-Fi network (or reachable via local subnet / VPN like Tailscale).
+- **Network**: Both devices on the same Wi-Fi, or both connected to [Tailscale](https://tailscale.com) to use Tether from anywhere.
 
 ---
 
 ## 📥 Installation
 
-1. Download the latest **`Tether-1.3.1.dmg`** from the [GitHub Releases](https://github.com/subhashhhhhh/Tether/releases) page.
+1. Download the latest release from the [GitHub Releases](https://github.com/subhashhhhhh/Tether/releases) page: **`Tether-<version>-AppleSilicon.dmg`** for Macs with an M-series chip, or **`Tether-<version>-Intel.dmg`** for Intel Macs. (Not sure? Apple menu → About This Mac → Chip or Processor.)
 2. Open the downloaded `.dmg` file.
 3. Drag **Tether.app** into your **Applications** folder.
 4. Launch **Tether**.
@@ -157,6 +162,9 @@ cd Tether
 
 # Build the Release configuration
 xcodebuild -project Tether.xcodeproj -scheme Tether -configuration Release build
+
+# Build the release disk images (one Apple Silicon, one Intel) into dist/
+scripts/release.sh
 
 # Run unit tests
 xcodebuild test -project Tether.xcodeproj -scheme Tether -destination "platform=macOS"

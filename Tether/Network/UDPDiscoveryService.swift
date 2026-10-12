@@ -9,6 +9,8 @@ import Darwin
 public protocol UDPDiscoveryDelegate: AnyObject, Sendable {
     func didDiscoverDevice(host: String, port: Int, deviceInfo: DeviceInfo)
     func isDeviceConnected(deviceId: String) -> Bool
+    /// Addresses of devices that are connected right now.
+    func connectedHosts() -> Set<String>
 }
 
 public final class UDPDiscoveryService: @unchecked Sendable {
@@ -21,6 +23,8 @@ public final class UDPDiscoveryService: @unchecked Sendable {
     private var broadcastTimer: DispatchSourceTimer?
     private var isRunning = false
     private var knownTargetIPs = Set<String>()
+    /// The user's phones on their Tailscale network, refreshed by TetherService.
+    private var tailscaleTargetIPs = Set<String>()
     private var lastDirectResponse: [String: Date] = [:]
     private var lastLoggedBroadcastTargets = Set<String>()
     private var hasLoggedOutboundPacket = false
@@ -45,6 +49,21 @@ public final class UDPDiscoveryService: @unchecked Sendable {
             if !current.contains(trimmed) {
                 current.append(trimmed)
                 UserDefaults.standard.set(current, forKey: "tether_manual_peer_ips")
+            }
+        }
+    }
+
+    /// Replaces the Tailscale targets, announcing ourselves to any new ones right
+    /// away so a phone that just came online doesn't wait for the next cycle.
+    public func setTailscaleTargets(_ ips: Set<String>) {
+        queue.async {
+            let added = ips.subtracting(self.tailscaleTargetIPs).subtracting(self.delegate?.connectedHosts() ?? [])
+            self.tailscaleTargetIPs = ips
+            guard !added.isEmpty,
+                  let data = try? DeviceIdentity.shared.toDeviceInfo().toUdpDiscoveryPacket().serialize() else { return }
+            TetherLog("[UDPDiscovery] Announcing to Tailscale peers: \(added.sorted().joined(separator: ", "))")
+            for ip in added {
+                self.sendDatagram(data: data, toIP: ip)
             }
         }
     }
@@ -165,7 +184,11 @@ public final class UDPDiscoveryService: @unchecked Sendable {
         delegate?.didDiscoverDevice(host: senderIP, port: tcpPort, deviceInfo: deviceInfo)
     }
 
-    public func broadcastPresence(tcpPort: Int? = nil, sweepSubnet: Bool = false) {
+    /// Announces this Mac. `routine` is the periodic background announcement:
+    /// it skips devices that are already connected, because KDE Connect on
+    /// Android answers every announcement by opening a fresh connection, which
+    /// would otherwise churn a healthy one every cycle.
+    public func broadcastPresence(tcpPort: Int? = nil, sweepSubnet: Bool = false, routine: Bool = false) {
         let packet = DeviceIdentity.shared.toDeviceInfo(tcpPort: tcpPort).toUdpDiscoveryPacket()
         guard let data = try? packet.serialize() else { return }
 
@@ -176,7 +199,7 @@ public final class UDPDiscoveryService: @unchecked Sendable {
         }
 
         queue.async {
-            self.sendBroadcastData(data, sweepSubnet: sweepSubnet)
+            self.sendBroadcastData(data, sweepSubnet: sweepSubnet, routine: routine)
         }
     }
 
@@ -202,7 +225,7 @@ public final class UDPDiscoveryService: @unchecked Sendable {
         let timer = DispatchSource.makeTimerSource(queue: queue)
         timer.schedule(deadline: .now() + .seconds(15), repeating: .seconds(45))
         timer.setEventHandler { [weak self] in
-            self?.broadcastPresence(sweepSubnet: false)
+            self?.broadcastPresence(sweepSubnet: false, routine: true)
         }
         timer.resume()
         self.broadcastTimer = timer
@@ -315,9 +338,13 @@ public final class UDPDiscoveryService: @unchecked Sendable {
         return addresses
     }
 
-    private func sendBroadcastData(_ data: Data, sweepSubnet: Bool = false) {
+    private func sendBroadcastData(_ data: Data, sweepSubnet: Bool = false, routine: Bool = false) {
         guard socketFD >= 0 else { return }
-        var targets = getBroadcastAddresses()
+        let connected = delegate?.connectedHosts() ?? []
+        // A broadcast reaches connected phones too, so a routine announcement
+        // only broadcasts while nothing is connected; otherwise it unicasts to
+        // the remaining candidates below.
+        var targets = routine && !connected.isEmpty ? [] : getBroadcastAddresses()
 
         // 1. Add active ARP neighbors directly from the kernel routing cache
         for ip in getKernelARPAddresses() {
@@ -326,12 +353,17 @@ public final class UDPDiscoveryService: @unchecked Sendable {
             }
         }
 
-        // 2. Add known past & manual target IPs
-        for ip in knownTargetIPs {
+        // 2. Add known past & manual target IPs, and phones on the user's tailnet
+        for ip in knownTargetIPs.union(tailscaleTargetIPs) {
             if !targets.contains(ip) {
                 targets.append(ip)
             }
         }
+
+        if routine {
+            targets.removeAll { connected.contains($0) }
+        }
+        guard !targets.isEmpty || sweepSubnet else { return }
 
         if Set(targets) != lastLoggedBroadcastTargets {
             lastLoggedBroadcastTargets = Set(targets)

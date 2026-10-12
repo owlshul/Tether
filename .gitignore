@@ -12,3 +12,4 @@ build_derived/
 dmg_staging/
 build_release/
 dmg_staging*/
+dist/

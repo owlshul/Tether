@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 import Observation
 import ServiceManagement
 import UserNotifications
@@ -23,6 +24,15 @@ public final class SettingsViewModel {
     public var launchAtLogin: Bool = false
     public var notificationAuthStatus: UNAuthorizationStatus = .notDetermined
     public var isAccessibilityTrusted: Bool = false
+    public var tailscaleStatus: TailscaleStatus = .notInstalled
+    public var isTailscaleDiscoveryEnabled: Bool = TailscaleDiscovery.isEnabled {
+        didSet {
+            guard !isMockMode, oldValue != isTailscaleDiscoveryEnabled else { return }
+            UserDefaults.standard.set(isTailscaleDiscoveryEnabled, forKey: TailscaleDiscovery.enabledKey)
+            TetherService.shared.refreshTailscale()
+        }
+    }
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
 
     private var isMockMode: Bool = false
 
@@ -30,6 +40,10 @@ public final class SettingsViewModel {
         self.isMockMode = isMock
         if !isMock {
             refresh()
+            TetherService.shared.$tailscaleStatus
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] in self?.tailscaleStatus = $0 }
+                .store(in: &cancellables)
         }
     }
 
@@ -149,6 +163,9 @@ public final class SettingsViewModel {
             )
         ]
         vm.launchAtLogin = true
+        vm.tailscaleStatus = .running(selfIP: "100.114.2.27", phones: [
+            TailscalePeer(name: "Pixel 9 Pro", ip: "100.123.228.122", os: "android")
+        ])
         vm.notificationAuthStatus = .authorized
         vm.isAccessibilityTrusted = true
         return vm
