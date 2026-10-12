@@ -92,18 +92,18 @@ if [[ "${1:-}" == "--publish" ]]; then
   {
     cat "$notes"
     # The app shows the notes above this marker and drops the rest.
-    print "\n<!-- tether:install -->\n\n---\n"
-    print "### ⬇️ Install\n"
-    print "**Homebrew** (recommended; no Gatekeeper prompt):"
-    print '```bash\nbrew install --cask subhashhhhhh/tether/tether\n```\n'
-    print "**Or download the disk image for your Mac:**"
-    print "- Apple Silicon (M1 and later): \`Tether-$VERSION-AppleSilicon.dmg\`"
-    print "- Intel: \`Tether-$VERSION-Intel.dmg\`\n"
-    print "Not sure which you have? Apple menu → **About This Mac** → **Chip** (Apple Silicon) or **Processor** (Intel). Tether needs macOS 15 Sequoia or later.\n"
-    print "Tether is open source and isn't notarized by Apple, so the first time you open a downloaded copy macOS blocks it. Open **System Settings → Privacy & Security**, scroll to **Security** and click **Open Anyway**, or run:"
-    print '```bash\nxattr -cr /Applications/Tether.app\n```\n'
-    print "Already on Tether 1.5.1 or later? It updates itself from **Tether › Check for Updates…**\n"
-    print "Checksums are in \`SHA256SUMS-$VERSION.txt\`."
+    print -- "\n<!-- tether:install -->\n\n---\n"
+    print -- "### ⬇️ Install\n"
+    print -- "**Homebrew** (recommended; no Gatekeeper prompt):"
+    print -- '```bash\nbrew install --cask subhashhhhhh/tether/tether\n```\n'
+    print -- "**Or download the disk image for your Mac:**"
+    print -- "- Apple Silicon (M1 and later): \`Tether-$VERSION-AppleSilicon.dmg\`"
+    print -- "- Intel: \`Tether-$VERSION-Intel.dmg\`\n"
+    print -- "Not sure which you have? Apple menu → **About This Mac** → **Chip** (Apple Silicon) or **Processor** (Intel). Tether needs macOS 15 Sequoia or later.\n"
+    print -- "Tether is open source and isn't notarized by Apple, so the first time you open a downloaded copy macOS blocks it. Open **System Settings → Privacy & Security**, scroll to **Security** and click **Open Anyway**, or run:"
+    print -- '```bash\nxattr -cr /Applications/Tether.app\n```\n'
+    print -- "Already on Tether 1.5.1 or later? It updates itself from **Tether › Check for Updates…**\n"
+    print -- "Checksums are in \`SHA256SUMS-$VERSION.txt\`."
   } > "$body"
 
   echo "\n==> Publishing v$VERSION"
