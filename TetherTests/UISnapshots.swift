@@ -11,6 +11,7 @@
 import Testing
 import SwiftUI
 import AppKit
+import ScreenCaptureKit
 @testable import Tether
 
 @MainActor
@@ -99,10 +100,29 @@ import AppKit
 
         try await Task.sleep(for: .milliseconds(900))
 
+        // Capture through the window server, so Liquid Glass and materials
+        // appear as they do on screen; cacheDisplay can't draw them.
+        if let image = try? await Self.captureWindow(window) {
+            let rep = NSBitmapImageRep(cgImage: image)
+            try rep.representation(using: .png, properties: [:])?.write(to: url)
+            return
+        }
         guard let frameView = window.contentView?.superview ?? window.contentView else { return }
         frameView.layoutSubtreeIfNeeded()
         guard let rep = frameView.bitmapImageRepForCachingDisplay(in: frameView.bounds) else { return }
         frameView.cacheDisplay(in: frameView.bounds, to: rep)
         try rep.representation(using: .png, properties: [:])?.write(to: url)
+    }
+
+    private static func captureWindow(_ window: NSWindow) async throws -> CGImage? {
+        let content = try await SCShareableContent.currentProcess
+        guard let scWindow = content.windows.first(where: { $0.windowID == CGWindowID(window.windowNumber) }) else { return nil }
+        let filter = SCContentFilter(desktopIndependentWindow: scWindow)
+        let configuration = SCStreamConfiguration()
+        configuration.width = Int(filter.contentRect.width * CGFloat(filter.pointPixelScale))
+        configuration.height = Int(filter.contentRect.height * CGFloat(filter.pointPixelScale))
+        configuration.showsCursor = false
+        configuration.ignoreShadowsSingleWindow = true
+        return try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
     }
 }
