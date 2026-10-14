@@ -225,6 +225,7 @@ private struct GeneralSettings: View {
     @Bindable var viewModel: SettingsViewModel
     @State private var name = ""
     @AppStorage(MotionPreference.key) private var reduceMotion = false
+    @AppStorage(OneTimeCode.autoCopyKey) private var copyCodes = false
 
     var body: some View {
         Form {
@@ -247,6 +248,10 @@ private struct GeneralSettings: View {
                 Toggle(isOn: $reduceMotion) {
                     Text("Reduce motion")
                     Text("Turns off Tether's animations, such as the drop highlight and list changes.")
+                }
+                Toggle(isOn: $copyCodes) {
+                    Text("Copy verification codes automatically")
+                    Text("When a notification from your phone contains a sign-in code, Tether puts it on the clipboard.")
                 }
             }
 
