@@ -53,6 +53,8 @@ public final class DeviceViewModel: Identifiable, Hashable {
     /// Whether there's anything to set the volume of: on Android, a media app
     /// with an active session.
     public var canSetVolume = false
+    /// Connected through Tailscale rather than the local network.
+    public var isViaTailscale = false
 
     // Action handlers injected by TetherAppModel or mocked
     public var onPing: (() -> Void)?

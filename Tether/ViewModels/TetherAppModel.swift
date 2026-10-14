@@ -231,6 +231,10 @@ public final class TetherAppModel {
         vm.onLockDevice = { service.lockPhone(deviceId) }
         let canLock = connection.peerDeviceInfo?.incomingCapabilities.contains("kdeconnect.lock.request") ?? false
         if vm.canLock != canLock { vm.canLock = canLock }
+        // Tailscale addresses are in 100.64.0.0/10.
+        let octets = connection.host.split(separator: ".").compactMap { Int($0) }
+        let viaTailscale = octets.count == 4 && octets[0] == 100 && (64...127).contains(octets[1])
+        if vm.isViaTailscale != viaTailscale { vm.isViaTailscale = viaTailscale }
         vm.onUnpair = { service.unpair(deviceId: deviceId) }
         vm.onExecuteCommand = { cmdId in
             service.runCommandPlugin.startCommand(key: cmdId, connection: service.connectedDevices[deviceId])
@@ -340,9 +344,9 @@ public final class TetherAppModel {
         TetherService.shared.unpair(deviceId: deviceId)
     }
 
-    public func refreshDiscovery() {
+    public func refreshDiscovery(thorough: Bool = true) {
         guard !isMockMode else { return }
-        TetherService.shared.refreshDiscovery()
+        TetherService.shared.refreshDiscovery(thorough: thorough)
         checkNotificationStatus()
     }
 
