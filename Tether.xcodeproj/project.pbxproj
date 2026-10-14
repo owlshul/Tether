@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		38226D9A307CF7BF00449642 /* TetherShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 38226D8E307CF7BE00449642 /* TetherShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		38F25CBC307F5E5B00B2D78B /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38F25CBB307F5E5B00B2D78B /* UniformTypeIdentifiers.framework */; };
-		38F25CC8307F5E5B00B2D78B /* TetherFiles.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 38F25CB9307F5E5B00B2D78B /* TetherFiles.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -34,13 +33,6 @@
 			remoteGlobalIDString = 38226D8D307CF7BE00449642;
 			remoteInfo = TetherShare;
 		};
-		38F25CC6307F5E5B00B2D78B /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 380DA59E306B8D3000598FE4 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 38F25CB8307F5E5B00B2D78B;
-			remoteInfo = TetherFiles;
-		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -49,7 +41,6 @@
 			dstPath = "";
 			dstSubfolder = PlugIns;
 			files = (
-				38F25CC8307F5E5B00B2D78B /* TetherFiles.appex in Embed Foundation Extensions */,
 				38226D9A307CF7BF00449642 /* TetherShare.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
@@ -61,7 +52,6 @@
 		380DA5B3306B8D3200598FE4 /* TetherTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TetherTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		380DA5BD306B8D3200598FE4 /* TetherUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TetherUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		38226D8E307CF7BE00449642 /* TetherShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TetherShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		38F25CB9307F5E5B00B2D78B /* TetherFiles.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TetherFiles.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		38F25CBB307F5E5B00B2D78B /* UniformTypeIdentifiers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UniformTypeIdentifiers.framework; path = System/Library/Frameworks/UniformTypeIdentifiers.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -72,13 +62,6 @@
 				Info.plist,
 			);
 			target = 38226D8D307CF7BE00449642 /* TetherShare */;
-		};
-		38F25CCB307F5E5C00B2D78B /* Exceptions for "TetherFiles" folder in "TetherFiles" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 38F25CB8307F5E5B00B2D78B /* TetherFiles */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -106,19 +89,6 @@
 			path = TetherShare;
 			sourceTree = "<group>";
 		};
-		38F25CBD307F5E5B00B2D78B /* TetherFiles */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				38F25CCB307F5E5C00B2D78B /* Exceptions for "TetherFiles" folder in "TetherFiles" target */,
-			);
-			path = TetherFiles;
-			sourceTree = "<group>";
-		};
-		38F2AA01307F600000B2D78B /* Shared */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Shared;
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -142,24 +112,16 @@
 			files = (
 			);
 		};
-		38F25CB6307F5E5B00B2D78B /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			files = (
-				38F25CBC307F5E5B00B2D78B /* UniformTypeIdentifiers.framework in Frameworks */,
-			);
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		380DA59D306B8D3000598FE4 = {
 			isa = PBXGroup;
 			children = (
-				38F2AA01307F600000B2D78B /* Shared */,
 				380DA5A8306B8D3000598FE4 /* Tether */,
 				380DA5B6306B8D3200598FE4 /* TetherTests */,
 				380DA5C0306B8D3200598FE4 /* TetherUITests */,
 				38226D8F307CF7BE00449642 /* TetherShare */,
-				38F25CBD307F5E5B00B2D78B /* TetherFiles */,
 				38F25CBA307F5E5B00B2D78B /* Frameworks */,
 				380DA5A7306B8D3000598FE4 /* Products */,
 			);
@@ -172,7 +134,6 @@
 				380DA5B3306B8D3200598FE4 /* TetherTests.xctest */,
 				380DA5BD306B8D3200598FE4 /* TetherUITests.xctest */,
 				38226D8E307CF7BE00449642 /* TetherShare.appex */,
-				38F25CB9307F5E5B00B2D78B /* TetherFiles.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -201,11 +162,9 @@
 			);
 			dependencies = (
 				38226D99307CF7BF00449642 /* PBXTargetDependency */,
-				38F25CC7307F5E5B00B2D78B /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				380DA5A8306B8D3000598FE4 /* Tether */,
-				38F2AA01307F600000B2D78B /* Shared */,
 			);
 			name = Tether;
 			productName = Tether;
@@ -272,25 +231,6 @@
 			productReference = 38226D8E307CF7BE00449642 /* TetherShare.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
-		38F25CB8307F5E5B00B2D78B /* TetherFiles */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 38F25CCC307F5E5C00B2D78B /* Build configuration list for PBXNativeTarget "TetherFiles" */;
-			buildPhases = (
-				38F25CB5307F5E5B00B2D78B /* Sources */,
-				38F25CB6307F5E5B00B2D78B /* Frameworks */,
-				38F25CB7307F5E5B00B2D78B /* Resources */,
-			);
-			buildRules = (
-			);
-			fileSystemSynchronizedGroups = (
-				38F25CBD307F5E5B00B2D78B /* TetherFiles */,
-				38F2AA01307F600000B2D78B /* Shared */,
-			);
-			name = TetherFiles;
-			productName = TetherFiles;
-			productReference = 38F25CB9307F5E5B00B2D78B /* TetherFiles.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -315,9 +255,6 @@
 					38226D8D307CF7BE00449642 = {
 						CreatedOnToolsVersion = 27.0;
 					};
-					38F25CB8307F5E5B00B2D78B = {
-						CreatedOnToolsVersion = 27.0;
-					};
 				};
 			};
 			buildConfigurationList = 380DA5A1306B8D3000598FE4 /* Build configuration list for PBXProject "Tether" */;
@@ -338,7 +275,6 @@
 				380DA5B2306B8D3200598FE4 /* TetherTests */,
 				380DA5BC306B8D3200598FE4 /* TetherUITests */,
 				38226D8D307CF7BE00449642 /* TetherShare */,
-				38F25CB8307F5E5B00B2D78B /* TetherFiles */,
 			);
 		};
 /* End PBXProject section */
@@ -360,11 +296,6 @@
 			);
 		};
 		38226D8C307CF7BE00449642 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			files = (
-			);
-		};
-		38F25CB7307F5E5B00B2D78B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
 			);
@@ -392,11 +323,6 @@
 			files = (
 			);
 		};
-		38F25CB5307F5E5B00B2D78B /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			files = (
-			);
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -414,11 +340,6 @@
 			isa = PBXTargetDependency;
 			target = 38226D8D307CF7BE00449642 /* TetherShare */;
 			targetProxy = 38226D98307CF7BF00449642 /* PBXContainerItemProxy */;
-		};
-		38F25CC7307F5E5B00B2D78B /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 38F25CB8307F5E5B00B2D78B /* TetherFiles */;
-			targetProxy = 38F25CC6307F5E5B00B2D78B /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -787,66 +708,6 @@
 			};
 			name = Release;
 		};
-		38F25CC9307F5E5B00B2D78B /* Debug configuration for PBXNativeTarget "TetherFiles" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = TetherFiles/TetherFiles.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 8;
-				ENABLE_APP_SANDBOX = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = TetherFiles/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = TetherFiles;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@executable_path/../../../../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.5.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.subhashh.Tether.Files;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Debug;
-		};
-		38F25CCA307F5E5B00B2D78B /* Release configuration for PBXNativeTarget "TetherFiles" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = TetherFiles/TetherFiles.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 8;
-				ENABLE_APP_SANDBOX = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = TetherFiles/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = TetherFiles;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@executable_path/../../../../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.5.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.subhashh.Tether.Files;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -887,14 +748,6 @@
 			buildConfigurations = (
 				38226D9D307CF7BF00449642 /* Debug configuration for PBXNativeTarget "TetherShare" */,
 				38226D9E307CF7BF00449642 /* Release configuration for PBXNativeTarget "TetherShare" */,
-			);
-			defaultConfigurationName = Release;
-		};
-		38F25CCC307F5E5C00B2D78B /* Build configuration list for PBXNativeTarget "TetherFiles" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				38F25CC9307F5E5B00B2D78B /* Debug configuration for PBXNativeTarget "TetherFiles" */,
-				38F25CCA307F5E5B00B2D78B /* Release configuration for PBXNativeTarget "TetherFiles" */,
 			);
 			defaultConfigurationName = Release;
 		};

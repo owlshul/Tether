@@ -55,7 +55,7 @@ As of Tether 1.5.1.
 
 Built and being tested.
 
-- [x] **Your phone in Finder.** Each paired phone appears under Locations in Finder's sidebar. Browse its storage, open files (they download when opened), and copy, rename, move and delete files and folders. Changes made on the phone show up within about a minute. It works over Wi-Fi and Tailscale using KDE Connect's file sharing, with an optional ADB mode (wireless debugging) for people who use it.
+- [x] **Your phone as a drive.** While a paired phone is connected, it's mounted in Finder as a drive named after it, with an eject button. Browse its storage, open files (read from the phone as you open them, so videos play right away), and copy, rename, move and delete files and folders. It works over Wi-Fi and Tailscale using KDE Connect's file sharing, with an optional ADB mode (wireless debugging) for people who use it. No administrator password or system extension is needed.
 - [x] **Media volume slider works.** It sets the phone's media volume while a media app is playing. Before, it sent nothing.
 - [x] **Faster disconnects.** A phone that leaves Wi-Fi shows as disconnected within about 15 seconds instead of a minute or more.
 - [x] **Lock button only where it works.** KDE Connect for Android can't be locked remotely, so the button only appears for devices that support it, such as Linux PCs running KDE Connect.

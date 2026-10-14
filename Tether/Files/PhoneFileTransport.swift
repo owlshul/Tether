@@ -17,6 +17,8 @@ protocol PhoneFileTransport: Actor {
     func info(_ path: String) async throws -> RemoteFile
     /// Writes the file into `fileDescriptor`, from offset 0.
     func download(_ path: String, to fileDescriptor: Int32) async throws
+    /// Up to `length` bytes at `offset`; fewer only at the end of the file.
+    func read(_ path: String, offset: Int64, length: Int) async throws -> Data
     func upload(from fileDescriptor: Int32, size: Int64, folder: String, name: String, modified: Date?) async throws -> RemoteFile
     func makeDirectory(folder: String, name: String) async throws -> RemoteFile
     func delete(_ path: String, isDirectory: Bool) async throws
@@ -105,6 +107,7 @@ actor SFTPTransport: PhoneFileTransport {
         } catch {
             await client?.close()
             client = nil
+            openFiles.removeAll()
             return try await operation(try await session())
         }
     }
@@ -140,8 +143,35 @@ actor SFTPTransport: PhoneFileTransport {
         _ = try await perform { try await $0.download(path, to: fileDescriptor) { _ in } }
     }
 
+    /// Files kept open for reads, so a video can be read piece by piece.
+    private var openFiles: [String: (handle: Data, used: Date)] = [:]
+
+    func read(_ path: String, offset: Int64, length: Int) async throws -> Data {
+        try await perform { client in
+            let handle: Data
+            if let open = openFiles[path] {
+                handle = open.handle
+            } else {
+                handle = try await client.openForReading(path)
+                if openFiles.count >= 12, let oldest = openFiles.min(by: { $0.value.used < $1.value.used }) {
+                    openFiles.removeValue(forKey: oldest.key)
+                    await client.closeFile(oldest.value.handle)
+                }
+            }
+            openFiles[path] = (handle, Date())
+            return try await client.read(handle, offset: offset, length: length)
+        }
+    }
+
+    /// Forgets open handles for a path that changed, so reads see the new contents.
+    func invalidate(_ path: String) async {
+        guard let open = openFiles.removeValue(forKey: path) else { return }
+        await client?.closeFile(open.handle)
+    }
+
     func upload(from fileDescriptor: Int32, size: Int64, folder: String, name: String, modified: Date?) async throws -> RemoteFile {
         let path = joinPath(try await resolve(folder), name)
+        await invalidate(path)
         try await perform { try await $0.upload(from: fileDescriptor, size: size, to: path, modified: modified) { _ in } }
         return try await info(path)
     }
@@ -153,6 +183,7 @@ actor SFTPTransport: PhoneFileTransport {
     }
 
     func delete(_ path: String, isDirectory: Bool) async throws {
+        await invalidate(path)
         if isDirectory {
             try await perform { try await $0.removeRecursively(path) }
         } else {
@@ -162,6 +193,8 @@ actor SFTPTransport: PhoneFileTransport {
 
     func move(_ path: String, toFolder folder: String, name: String) async throws -> RemoteFile {
         let destination = joinPath(try await resolve(folder), name)
+        await invalidate(path)
+        await invalidate(destination)
         try await perform { try await $0.rename(path, to: destination) }
         return try await info(destination)
     }
@@ -169,5 +202,6 @@ actor SFTPTransport: PhoneFileTransport {
     func close() async {
         await client?.close()
         client = nil
+        openFiles.removeAll()
     }
 }

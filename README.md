@@ -41,7 +41,7 @@ Or get the latest release from the **[Releases page](https://github.com/subhashh
 
 Not sure? Apple menu → **About This Mac**: it says **Chip** on Apple Silicon and **Processor** on Intel. Tether needs **macOS 15 Sequoia** or later.
 
-To see your phone in Finder, allow Tether's Finder extension once: **System Settings › General › Login Items & Extensions › File Providers**, then turn on **Tether**. On the phone, KDE Connect may ask for permission to access files the first time.
+On the phone, KDE Connect may ask for permission to access files the first time Tether mounts it.
 
 Once installed, Tether keeps itself up to date: it checks for a new version once a day, or whenever you choose **Tether › Check for Updates…**, and installs it in place.
 
@@ -55,7 +55,7 @@ On your phone, install **KDE Connect** from [Google Play](https://play.google.co
 
 **Files, both ways.** Drop files anywhere in the Tether window or on the menu bar popover, or choose **Share › Tether** in Finder, Photos and other apps, to send them to your phone. With more than one phone connected, the Share menu asks which one. Files shared from your phone land in **Downloads** with live progress.
 
-**Your phone in Finder.** Your phone appears under *Locations* in Finder's sidebar. Browse its storage, open photos and documents straight from it, and drag files in and out. Files download only when you open them. It uses KDE Connect's file sharing, so it works over Wi-Fi and Tailscale with no extra setup. If you use ADB, you can switch to wireless debugging in **Settings › Files**.
+**Your phone as a drive.** While your phone is connected, it appears in Finder as a drive named after it, with an eject button. Browse its storage, open photos and documents straight from it, and drag files in and out. Files are read from the phone as you open them, so a video starts playing right away. It uses KDE Connect's file sharing, so it works over Wi-Fi and Tailscale with no setup and no administrator password. If you use ADB, you can switch to wireless debugging in **Settings › Files**.
 
 **Clipboard, media and remote control.** Copy on one device, paste on the other. See what's playing on your phone and control playback and volume. **Find Phone** rings it at full volume.
 

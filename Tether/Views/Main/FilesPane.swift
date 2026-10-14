@@ -23,10 +23,10 @@ struct FilesPane: View {
                 if PhoneFilesController.shared.isEnabled {
                     LabeledContent {
                         Button("Show in Finder") { PhoneFilesController.shared.showInFinder(device.id) }
-                            .disabled(!device.isConnected)
+                            .disabled(!PhoneFilesController.shared.mountedDevices.contains(device.id))
                     } label: {
                         Text("Browse \(device.name)")
-                        Text("The phone's storage is in Finder's sidebar under Locations.")
+                        Text("While it's connected, the phone is a drive in Finder's sidebar.")
                     }
                 }
             }

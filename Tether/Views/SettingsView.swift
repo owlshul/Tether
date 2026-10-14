@@ -45,20 +45,10 @@ struct FilesSettings: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Show phones in Finder", isOn: $files.isEnabled)
+                Toggle("Mount phones as drives", isOn: $files.isEnabled)
             } footer: {
-                Text("Each paired phone appears under Locations in Finder's sidebar while it's connected. Files download when you open them.")
+                Text("While a paired phone is connected, it appears in Finder as a drive named after it. Files are read from the phone as you open them, so videos play right away.")
                     .foregroundStyle(.secondary)
-            }
-
-            if let error = files.setupError {
-                Section {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.secondary)
-                    Text("If Tether isn't turned on in System Settings › General › Login Items & Extensions › File Providers, turn it on there.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
             }
 
             if files.isEnabled {
@@ -105,9 +95,15 @@ private struct PhoneFilesSection: View {
                 }
             }
 
+            if let error = files.mountError[deviceId] {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.secondary)
+            }
+
             HStack {
                 Spacer()
                 Button("Show in Finder") { files.showInFinder(deviceId) }
+                    .disabled(!files.mountedDevices.contains(deviceId))
             }
         } header: {
             HStack(spacing: 8) {

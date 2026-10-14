@@ -185,8 +185,93 @@ actor ADBTransport: PhoneFileTransport {
         }
     }
 
+    // MARK: Reads
+
+    /// A file being streamed from the phone into a local cache file. ADB can't
+    /// read from an arbitrary position cheaply, so a read waits until the
+    /// stream has passed it.
+    private final class Stream: @unchecked Sendable {
+        let url: URL
+        let size: Int64
+        var finished = false
+        var failure: Error?
+        var used = Date()
+
+        init(url: URL, size: Int64) {
+            self.url = url
+            self.size = size
+        }
+
+        var available: Int64 {
+            (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
+        }
+    }
+
+    private var streams: [String: Stream] = [:]
+
+    private static var cacheDirectory: URL {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TetherADBReads", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    func read(_ path: String, offset: Int64, length: Int) async throws -> Data {
+        let stream = try await stream(for: path)
+        stream.used = Date()
+        let end = min(offset + Int64(length), stream.size)
+        guard offset < end else { return Data() }
+
+        let deadline = Date().addingTimeInterval(120)
+        while stream.available < end, !stream.finished {
+            if Date() > deadline { throw ADBError.failed("Reading from the phone timed out.") }
+            try await Task.sleep(for: .milliseconds(30))
+        }
+        if let failure = stream.failure { throw failure }
+
+        let handle = try FileHandle(forReadingFrom: stream.url)
+        defer { try? handle.close() }
+        try handle.seek(toOffset: UInt64(offset))
+        return try handle.read(upToCount: Int(end - offset)) ?? Data()
+    }
+
+    private func stream(for path: String) async throws -> Stream {
+        if let stream = streams[path], stream.failure == nil { return stream }
+
+        let size = try await info(path).size
+        let url = Self.cacheDirectory.appendingPathComponent(UUID().uuidString)
+        FileManager.default.createFile(atPath: url.path, contents: nil)
+        let stream = Stream(url: url, size: size)
+
+        // Keep a few files; delete the least recently read.
+        if streams.count >= 6, let oldest = streams.min(by: { $0.value.used < $1.value.used }) {
+            streams.removeValue(forKey: oldest.key)
+            try? FileManager.default.removeItem(at: oldest.value.url)
+        }
+        streams[path] = stream
+
+        let sink = try FileHandle(forWritingTo: url)
+        Task {
+            do {
+                _ = try await self.shell("cat \(Self.quote(path))", stdout: sink)
+            } catch {
+                stream.failure = error
+            }
+            try? sink.close()
+            stream.finished = true
+        }
+        return stream
+    }
+
+    /// Drops the cached copy of a path that changed.
+    private func invalidate(_ path: String) {
+        if let stream = streams.removeValue(forKey: path) {
+            try? FileManager.default.removeItem(at: stream.url)
+        }
+    }
+
     func upload(from fileDescriptor: Int32, size: Int64, folder: String, name: String, modified: Date?) async throws -> RemoteFile {
         let path = joinPath(Self.resolve(folder), name)
+        invalidate(path)
         lseek(fileDescriptor, 0, SEEK_SET)
         let source = FileHandle(fileDescriptor: fileDescriptor, closeOnDealloc: false)
         _ = try await shell("cat > \(Self.quote(path))", stdin: source)
@@ -202,11 +287,14 @@ actor ADBTransport: PhoneFileTransport {
     }
 
     func delete(_ path: String, isDirectory: Bool) async throws {
+        invalidate(path)
         _ = try await shell((isDirectory ? "rm -rf " : "rm -f ") + Self.quote(path))
     }
 
     func move(_ path: String, toFolder folder: String, name: String) async throws -> RemoteFile {
         let destination = joinPath(Self.resolve(folder), name)
+        invalidate(path)
+        invalidate(destination)
         _ = try await shell("mv \(Self.quote(path)) \(Self.quote(destination))")
         return try await info(destination)
     }

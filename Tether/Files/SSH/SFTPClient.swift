@@ -419,6 +419,84 @@ actor SFTPClient {
         }
     }
 
+    /// Opens a file for random-access reads; close it with `closeFile`.
+    func openForReading(_ path: String) async throws -> Data {
+        try handle(from: try await request(Packet.open) {
+            $0.string(path)
+            $0.uint32(OpenFlag.read)
+            $0.uint32(0)
+        })
+    }
+
+    func closeFile(_ handle: Data) async {
+        await closeHandle(handle)
+    }
+
+    /// Up to `length` bytes at `offset`, fewer only at the end of the file.
+    /// The 32 KB requests that make it up are sent all at once, so a 512 KB
+    /// read costs one round trip rather than sixteen.
+    func read(_ handle: Data, offset: Int64, length: Int) async throws -> Data {
+        let pieces = stride(from: 0, to: length, by: Self.chunkSize).map { start in
+            (offset: offset + Int64(start), length: min(Self.chunkSize, length - start))
+        }
+        let results = try await withThrowingTaskGroup(of: (Int, Data?).self) { group in
+            for (index, piece) in pieces.enumerated() {
+                group.addTask { (index, try await self.readOnce(handle, offset: piece.offset, length: piece.length)) }
+            }
+            var results = [Data?](repeating: nil, count: pieces.count)
+            for try await (index, data) in group { results[index] = data }
+            return results
+        }
+
+        var result = Data()
+        for (index, piece) in pieces.enumerated() {
+            guard let data = results[index] else { break } // end of file
+            result.append(data)
+            if data.count < piece.length {
+                // A short read: fetch the rest of this piece, then stop if the file ended.
+                var position = piece.offset + Int64(data.count)
+                let pieceEnd = piece.offset + Int64(piece.length)
+                while position < pieceEnd, let more = try await readOnce(handle, offset: position, length: Int(pieceEnd - position)), !more.isEmpty {
+                    result.append(more)
+                    position += Int64(more.count)
+                }
+                if position < pieceEnd { break }
+            }
+        }
+        return result
+    }
+
+    /// One READ request; nil at the end of the file.
+    private func readOnce(_ handle: Data, offset: Int64, length: Int) async throws -> Data? {
+        let reply = try await request(Packet.read) {
+            $0.string(handle)
+            $0.uint64(UInt64(offset))
+            $0.uint32(UInt32(length))
+        }
+        var reader = SSHReader(reply)
+        let type = try reader.byte()
+        if type == Packet.status {
+            try Self.checkStatus(reply, eofIsOK: true)
+            return nil
+        }
+        guard type == Packet.data else { throw SFTPError.badMessage }
+        _ = try reader.uint32()
+        let data = try reader.string()
+        return data.isEmpty ? nil : data
+    }
+
+    /// Reads several ranges of an open file at once (pipelined).
+    func read(_ handle: Data, ranges: [(offset: Int64, length: Int)]) async throws -> [Data] {
+        try await withThrowingTaskGroup(of: (Int, Data).self) { group in
+            for (index, range) in ranges.enumerated() {
+                group.addTask { (index, try await self.read(handle, offset: range.offset, length: range.length)) }
+            }
+            var results = [Data](repeating: Data(), count: ranges.count)
+            for try await (index, data) in group { results[index] = data }
+            return results
+        }
+    }
+
     func makeDirectory(_ path: String) async throws {
         try Self.checkStatus(try await request(Packet.makeDirectory) {
             $0.string(path)
