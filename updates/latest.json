@@ -1,17 +1,17 @@
 {
-  "version": "1.6",
-  "tag": "v1.6",
-  "notes": "### 💾 Your phone as a drive\n- While your phone is connected, it appears in Finder as a drive named after it, with an eject button. Browse its storage, open files, and drag files in and out.\n- Files are read from the phone as you open them, so a video starts playing right away instead of copying first. Writes are uploaded when the copy finishes.\n- It uses KDE Connect's own file sharing, so it works on Wi-Fi and over Tailscale with no setup, no administrator password and no system extension.\n- If you use ADB, you can switch a phone to wireless debugging in **Settings › Files**. Tether falls back to KDE Connect when ADB isn't reachable.\n- The **Files** tab shows whether the drive is mounted, with **Eject** and **Mount** buttons. Ejecting in Finder works too; the drive comes back when you mount it again or the phone reconnects.\n\n### ✨ A cleaner look\n- The overview leads with your phone's status: connection, battery and signal, with Find, Clipboard and Send Files as round glass buttons.\n- Liquid Glass panels and buttons on macOS 26, and translucent materials on macOS 15.\n- The sidebar lists just your devices; Messages, Notifications, Files and Commands are tabs in the toolbar, next to a new Settings button.\n- **Nearby** only appears once an unpaired device is found.\n- The menu bar popover is rebuilt as floating glass panels.\n\n### 🔧 Fixes\n- Opening the menu bar popover no longer makes a connected phone disconnect and reconnect.\n- The media volume slider now changes the phone's volume while something is playing.\n- A phone that leaves Wi-Fi shows as disconnected within about 15 seconds.\n- The Lock button only appears for devices that can be locked; KDE Connect for Android can't be.",
+  "version": "1.7",
+  "tag": "v1.7",
+  "notes": "### 🔔 Ring your Mac from your phone\n- Tap **Ring** for your Mac in KDE Connect on the phone, and the Mac plays a ringtone at full volume, even when it's muted.\n- A panel with **Stop** appears on screen. Ringing again from the phone also stops it, and it stops on its own after a minute.\n- Your volume and mute setting come back as they were.\n\n### 🔑 Copy verification codes\n- When a notification from your phone has a sign-in code, the banner shows the code and a **Copy Code** button.\n- The Notifications tab and the Overview have a **Copy Code** button too.\n- Turn on **Settings › General › Copy verification codes automatically** to have codes copied the moment they arrive.\n\n### 🤝 Pairing fixes\n- Pairing follows desktop KDE Connect's rules more closely, so a phone that pairs from the Mac stays paired.\n- A phone that forgot your Mac (after reinstalling KDE Connect, say) can ask to pair again.\n- Pairing requests time out after 30 seconds, and stale or replayed requests are ignored.\n\n### 🔧 Fixes\n- Checking for updates works on networks that share one public address, such as universities and offices, where GitHub limits requests.",
   "archives": {
     "AppleSilicon": {
-      "name": "Tether-1.6-AppleSilicon.zip",
-      "size": 3036717,
-      "sha256": "e7d7960afc1c481e152a2ea84134e80d9bceceadacfb61efa20ddf104b438cea"
+      "name": "Tether-1.7-AppleSilicon.zip",
+      "size": 3081884,
+      "sha256": "07160a6429f3ae8d8781c13d6df12e5ebb522817e0e1c98a9b3861d3a2030368"
     },
     "Intel": {
-      "name": "Tether-1.6-Intel.zip",
-      "size": 3157349,
-      "sha256": "87a6a18ccdf5133e7cdd85a2a5a0ea6168efcac72d83adaf481a0529a28814bc"
+      "name": "Tether-1.7-Intel.zip",
+      "size": 3205452,
+      "sha256": "5980ae3871b48d0677678c150a81a5a3509c8211eddacd9f14ad9b7b7814c9fe"
     }
   }
 }
