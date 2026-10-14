@@ -3,7 +3,7 @@
 //  Tether
 //
 
-import Foundation
+import AppKit
 import Combine
 import UserNotifications
 
@@ -18,6 +18,8 @@ public struct PhoneNotification: Identifiable, Hashable, Sendable {
     /// Present when the phone accepts an inline reply (messaging apps).
     public let replyId: String?
     public let isDismissable: Bool
+    /// A one-time verification code found in the title or text.
+    public var code: String? = nil
 }
 
 public final class NotificationPlugin: NSObject, ObservableObject, TetherPlugin, UNUserNotificationCenterDelegate, @unchecked Sendable {
@@ -89,7 +91,20 @@ public final class NotificationPlugin: NSObject, ObservableObject, TetherPlugin,
             options: []
         )
 
-        UNUserNotificationCenter.current().setNotificationCategories([category, pairCategory])
+        let copyCodeAction = UNNotificationAction(
+            identifier: "TETHER_COPY_CODE_ACTION",
+            title: "Copy Code",
+            options: []
+        )
+
+        let codeCategory = UNNotificationCategory(
+            identifier: "TETHER_CODE_CATEGORY",
+            actions: [copyCodeAction, replyAction, dismissAction],
+            intentIdentifiers: [],
+            options: []
+        )
+
+        UNUserNotificationCenter.current().setNotificationCategories([category, codeCategory, pairCategory])
     }
 
     public func onConnected(connection: DeviceConnection) {
@@ -144,6 +159,14 @@ public final class NotificationPlugin: NSObject, ObservableObject, TetherPlugin,
         removeLocally(id: notification.id, deviceId: notification.deviceId)
     }
 
+    /// Puts a verification code on the clipboard.
+    public static func copyToPasteboard(_ code: String) {
+        DispatchQueue.main.async {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(code, forType: .string)
+        }
+    }
+
     private func removeLocally(id: String, deviceId: String) {
         UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [id])
         DispatchQueue.main.async {
@@ -183,7 +206,8 @@ public final class NotificationPlugin: NSObject, ObservableObject, TetherPlugin,
             text: text,
             date: timeMillis > 0 ? Date(timeIntervalSince1970: TimeInterval(timeMillis) / 1000) : Date(),
             replyId: replyId,
-            isDismissable: packet.bool(for: "isClearable", default: true)
+            isDismissable: packet.bool(for: "isClearable", default: true),
+            code: OneTimeCode.find(in: title + "\n" + text)
         )
         DispatchQueue.main.async {
             var list = self.notifications[deviceId] ?? []
@@ -197,16 +221,27 @@ public final class NotificationPlugin: NSObject, ObservableObject, TetherPlugin,
         // initial sync after connecting); list them but do not re-alert.
         if silent { return }
 
+        if let code = item.code, UserDefaults.standard.bool(forKey: OneTimeCode.autoCopyKey) {
+            Self.copyToPasteboard(code)
+            TetherLog("[NotificationPlugin] Copied a verification code from \(appName)")
+        }
+
         let content = UNMutableNotificationContent()
         content.title = title.isEmpty ? appName : "\(appName): \(title)"
         content.body = text
         content.sound = .default
-        content.categoryIdentifier = "TETHER_NOTIFICATION_CATEGORY"
+        content.categoryIdentifier = item.code == nil ? "TETHER_NOTIFICATION_CATEGORY" : "TETHER_CODE_CATEGORY"
         content.userInfo = [
             "deviceId": deviceId,
             "notifId": notifId,
-            "replyId": replyId ?? ""
+            "replyId": replyId ?? "",
+            "code": item.code ?? ""
         ]
+        if let code = item.code {
+            content.subtitle = UserDefaults.standard.bool(forKey: OneTimeCode.autoCopyKey)
+                ? "Code \(code) copied"
+                : "Code \(code)"
+        }
 
         let request = UNNotificationRequest(
             identifier: notifId,
@@ -256,6 +291,15 @@ public final class NotificationPlugin: NSObject, ObservableObject, TetherPlugin,
         }
 
         let userInfo = response.notification.request.content.userInfo
+        // Copying needs no connection: the code is in the notification.
+        if response.actionIdentifier == "TETHER_COPY_CODE_ACTION" {
+            if let code = userInfo["code"] as? String, !code.isEmpty {
+                Self.copyToPasteboard(code)
+            }
+            completionHandler()
+            return
+        }
+
         guard let deviceId = userInfo["deviceId"] as? String,
               let connection = activeConnections[deviceId] else {
             completionHandler()
