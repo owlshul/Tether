@@ -49,7 +49,7 @@ On your phone, install **KDE Connect** from [Google Play](https://play.google.co
 
 ## What it does
 
-**Notifications, answered from the Mac.** Phone notifications appear in Notification Center. Messaging apps that support it (SMS, WhatsApp, Telegram, Signal and others) can be replied to right from the banner, and anything you dismiss on the Mac is dismissed on the phone.
+**Notifications, answered from the Mac.** Phone notifications appear in Notification Center. Messaging apps that support it (SMS, WhatsApp, Telegram, Signal and others) can be replied to right from the banner, and anything you dismiss on the Mac is dismissed on the phone. Sign-in codes get a **Copy Code** button, or can be copied automatically.
 
 **Your texts.** SMS conversations sync to the Messages section, where you can read threads and send replies.
 
@@ -57,7 +57,7 @@ On your phone, install **KDE Connect** from [Google Play](https://play.google.co
 
 **Your phone as a drive.** While your phone is connected, it appears in Finder as a drive named after it, with an eject button. Browse its storage, open photos and documents straight from it, and drag files in and out. Files are read from the phone as you open them, so a video starts playing right away. It uses KDE Connect's file sharing, so it works over Wi-Fi and Tailscale with no setup and no administrator password. If you use ADB, you can switch to wireless debugging in **Settings › Files**.
 
-**Clipboard, media and remote control.** Copy on one device, paste on the other. See what's playing on your phone and control playback and volume. **Find Phone** rings it at full volume.
+**Clipboard, media and remote control.** Copy on one device, paste on the other. See what's playing on your phone and control playback and volume. **Find Phone** rings it at full volume, and **Ring** in KDE Connect on the phone rings your Mac.
 
 **Your phone as a trackpad and presenter.** KDE Connect's Remote Input and Presentation tools move the pointer, click, scroll, type and show an on-screen laser pointer. This needs Accessibility access, which you can grant from Tether's Overview or Settings.
 

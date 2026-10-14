@@ -8,13 +8,14 @@ Planned features have no dates. Ideas and bug reports are welcome in [Issues](ht
 
 ## Available now
 
-As of Tether 1.6.
+As of Tether 1.7.
 
 ### Connecting
 - [x] Finds your phone automatically on the same Wi-Fi
 - [x] Finds your phone over [Tailscale](https://tailscale.com), so it works away from home
 - [x] Connect by IP address or Tailscale name
 - [x] Pairing with certificate pinning, so only your phone can connect as your phone
+- [x] A phone that forgot the Mac (after reinstalling KDE Connect, say) can ask to pair again
 - [x] Several phones or tablets at once
 - [x] Notices within about 15 seconds when a phone leaves Wi-Fi or goes out of range
 
@@ -22,6 +23,7 @@ As of Tether 1.6.
 - [x] Phone notifications in macOS Notification Center
 - [x] Reply to messages (SMS, WhatsApp, Telegram, Signal and others) from the banner
 - [x] Dismissing on the Mac dismisses on the phone
+- [x] **Copy verification codes.** Sign-in codes in notifications get a Copy Code button in the banner and in Tether, with an option to copy them automatically
 - [x] Incoming and missed call notifications
 
 ### Messages
@@ -40,6 +42,7 @@ As of Tether 1.6.
 - [x] See what's playing on the phone, with album art and playback controls
 - [x] Set the phone's media volume while something is playing
 - [x] **Find Phone** rings it at full volume
+- [x] **Ring your Mac from your phone** with KDE Connect's Ring button
 - [x] Battery level, charging state, network type and signal strength
 
 ### Using your phone as an input device
@@ -57,11 +60,8 @@ As of Tether 1.6.
 ## Planned
 
 ### Coming next
-- [ ] **Copy verification codes.** One-time codes in texts and notifications get a "Copy code" button, like Messages on an iPhone.
 - [ ] **Contact names and photos.** Show names and photos from your phone's contacts in Messages and call notifications instead of bare numbers.
 - [ ] **Better call notifications.** Caller photo, a button to silence the ringer, and pausing whatever is playing on the Mac.
-- [ ] **Ring your Mac from your phone.** Answer KDE Connect's "Ring" button on the phone by playing a sound on the Mac.
-- [ ] **Pairing fixes.** Let a phone that forgot the Mac ask to pair again, and check pairing requests' timestamps like desktop KDE Connect does.
 
 ### Later
 - [ ] **Shortcuts and Siri.** Actions such as "Send file to phone", "Ring my phone", "Send a text" and "Get phone battery" for the Shortcuts app.
