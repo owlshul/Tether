@@ -8,7 +8,7 @@ Planned features have no dates. Ideas and bug reports are welcome in [Issues](ht
 
 ## Available now
 
-As of Tether 1.5.1.
+As of Tether 1.6.
 
 ### Connecting
 - [x] Finds your phone automatically on the same Wi-Fi
@@ -16,6 +16,7 @@ As of Tether 1.5.1.
 - [x] Connect by IP address or Tailscale name
 - [x] Pairing with certificate pinning, so only your phone can connect as your phone
 - [x] Several phones or tablets at once
+- [x] Notices within about 15 seconds when a phone leaves Wi-Fi or goes out of range
 
 ### Notifications and calls
 - [x] Phone notifications in macOS Notification Center
@@ -33,9 +34,11 @@ As of Tether 1.5.1.
 - [x] Several files at once, of any size
 - [x] Files from the phone land in Downloads, with progress
 - [x] Clipboard sync both ways (text)
+- [x] **Your phone as a drive.** While it's connected, the phone is mounted in Finder as a drive named after it, with an eject button. Files are read from the phone as you open them, so videos play right away. Works over Wi-Fi and Tailscale, with an optional ADB mode, and needs no administrator password or system extension. Eject and mount it from the Files tab.
 
 ### Media and controls
 - [x] See what's playing on the phone, with album art and playback controls
+- [x] Set the phone's media volume while something is playing
 - [x] **Find Phone** rings it at full volume
 - [x] Battery level, charging state, network type and signal strength
 
@@ -45,20 +48,11 @@ As of Tether 1.5.1.
 - [x] Run commands you set up on the Mac from the phone
 
 ### The app
-- [x] Menu bar popover and a main window
+- [x] Menu bar popover and a main window, with Liquid Glass on macOS 26 and translucent materials on macOS 15
 - [x] Light and Dark mode, accent colour, and a Reduce Motion setting
 - [x] Updates itself, after checking each update's signature
 - [x] Homebrew install: `brew install --cask subhashhhhhh/tether/tether`
 - [x] Apple Silicon and Intel, macOS 15 Sequoia or later
-
-## Next release
-
-Built and being tested.
-
-- [x] **Your phone as a drive.** While a paired phone is connected, it's mounted in Finder as a drive named after it, with an eject button. Browse its storage, open files (read from the phone as you open them, so videos play right away), and copy, rename, move and delete files and folders. It works over Wi-Fi and Tailscale using KDE Connect's file sharing, with an optional ADB mode (wireless debugging) for people who use it. No administrator password or system extension is needed.
-- [x] **Media volume slider works.** It sets the phone's media volume while a media app is playing. Before, it sent nothing.
-- [x] **Faster disconnects.** A phone that leaves Wi-Fi shows as disconnected within about 15 seconds instead of a minute or more.
-- [x] **Lock button only where it works.** KDE Connect for Android can't be locked remotely, so the button only appears for devices that support it, such as Linux PCs running KDE Connect.
 
 ## Planned
 

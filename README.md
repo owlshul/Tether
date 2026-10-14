@@ -63,7 +63,7 @@ On your phone, install **KDE Connect** from [Google Play](https://play.google.co
 
 **Commands.** Set up shell commands on your Mac and run them from your phone.
 
-**Lives in the menu bar.** The menu bar popover shows your phone's battery and connection, quick actions, what's playing and new pairing requests. The main window has a sidebar with your devices and each phone's Messages, Notifications, Files and Commands.
+**Lives in the menu bar.** The menu bar popover shows your phone's battery and connection, quick actions, what's playing and new pairing requests. The main window lists your devices in the sidebar, with each phone's Overview, Messages, Notifications, Files and Commands as tabs. It uses Liquid Glass on macOS 26 and translucent materials on macOS 15.
 
 <p align="center">
   <img src="docs/images/messages.jpg" alt="Tether's Messages view with a reply from a notification banner" />
@@ -149,7 +149,8 @@ scripts/release.sh
 
 ### How it works
 
-- **UI:** SwiftUI with `@Observable` view models, built from stock controls, grouped forms and a sidebar list, so it follows Light and Dark mode, your accent colour and accessibility settings.
+- **UI:** SwiftUI with `@Observable` view models and stock controls, with Liquid Glass on macOS 26 and materials on macOS 15, so it follows Light and Dark mode, your accent colour and accessibility settings.
+- **Phone drive:** a small NFS version 3 server on the loopback interface, mounted by the user with `mount_nfs` and named through a local-only Bonjour host, backed by SFTP (a native SSH client on CryptoKit) or ADB.
 - **Networking:** BSD sockets with `poll()`-driven I/O and Security framework TLS. KDE Connect upgrades an open connection to TLS after a plaintext handshake, which `Network.framework` can't do.
 - **Identity:** created once with the `openssl` tool that ships with macOS, then loaded in memory by the Security framework.
 
