@@ -2,8 +2,8 @@
 //  MainWindowView.swift
 //  Tether
 //
-//  The main window: devices in a sidebar, with a connected device's sections
-//  nested under it (like mailboxes in Mail), and the selection on the right.
+//  The main window: devices in a sidebar, and the selected device on the
+//  right, with its sections as tabs in the toolbar.
 //
 
 import SwiftUI
@@ -60,6 +60,7 @@ enum SidebarItem: Hashable {
 public struct MainWindowView: View {
     @Bindable var appModel: TetherAppModel
     @State private var selection: SidebarItem?
+    @State private var section: DeviceSection
 
     public init(appModel: TetherAppModel) {
         self.init(appModel: appModel, initialSection: .overview)
@@ -67,7 +68,8 @@ public struct MainWindowView: View {
 
     init(appModel: TetherAppModel, initialSection: DeviceSection) {
         self.appModel = appModel
-        _selection = State(initialValue: appModel.selectedDeviceId.map { SidebarItem(deviceId: $0, section: initialSection) })
+        _selection = State(initialValue: appModel.selectedDeviceId.map(SidebarItem.device))
+        _section = State(initialValue: initialSection)
     }
 
     public var body: some View {
@@ -80,6 +82,14 @@ public struct MainWindowView: View {
             detail
         }
         .frame(minWidth: 760, minHeight: 520)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                SettingsLink {
+                    Label("Settings", systemImage: "gearshape")
+                }
+                .help("Settings")
+            }
+        }
         .sheet(isPresented: $appModel.isShowingConnectByIP) {
             ConnectByIPSheet { await appModel.addManualPeer(address: $0) }
         }
@@ -110,8 +120,8 @@ public struct MainWindowView: View {
             DeviceDetailView(
                 device: device,
                 appModel: appModel,
-                section: device.isConnected ? selection.section : .overview,
-                onSelectSection: { self.selection = SidebarItem(deviceId: device.id, section: $0) },
+                section: device.isConnected ? section : .overview,
+                onSelectSection: { section = $0 },
                 onConnectByIP: { appModel.isShowingConnectByIP = true }
             )
         } else if appModel.allDevices.isEmpty {
@@ -138,17 +148,8 @@ struct DeviceSidebar: View {
 
     @State private var deviceToUnpair: DeviceViewModel?
 
-    /// One flat row list, so every ForEach element is exactly one row.
     private var pairedRows: [SidebarRow] {
-        appModel.pairedDevices.flatMap { device -> [SidebarRow] in
-            var rows = [SidebarRow(item: .device(device.id), device: device)]
-            if device.isConnected {
-                rows += DeviceSection.allCases.dropFirst().map {
-                    SidebarRow(item: .section(device.id, $0), device: device)
-                }
-            }
-            return rows
-        }
+        appModel.pairedDevices.map { SidebarRow(item: .device($0.id), device: $0) }
     }
 
     var body: some View {
@@ -163,20 +164,14 @@ struct DeviceSidebar: View {
                 }
             }
 
-            Section("Nearby") {
-                ForEach(appModel.availableDevices) { device in
-                    SidebarRowView(row: SidebarRow(item: .device(device.id), device: device))
-                        .tag(SidebarItem.device(device.id))
-                }
-
-                if appModel.availableDevices.isEmpty {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Looking for devices…")
-                            .foregroundStyle(.secondary)
+            // Discovery runs in the background; the section appears once
+            // an unpaired device has been found.
+            if !appModel.availableDevices.isEmpty {
+                Section("Nearby") {
+                    ForEach(appModel.availableDevices) { device in
+                        SidebarRowView(row: SidebarRow(item: .device(device.id), device: device))
+                            .tag(SidebarItem.device(device.id))
                     }
-                    .selectionDisabled()
                 }
             }
         }
