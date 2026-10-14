@@ -244,7 +244,9 @@ struct TetherTests {
             "kdeconnect.presenter",
             "kdeconnect.sms.messages",
             "kdeconnect.sms.attachment_file",
-            "kdeconnect.runcommand.request"
+            "kdeconnect.runcommand.request",
+            // Ring this Mac: the same packet type rings in either direction.
+            "kdeconnect.findmyphone.request"
         ] {
             #expect(incoming.contains(type), "\(type) must be receivable")
         }
@@ -269,7 +271,6 @@ struct TetherTests {
 
         // Request/response pairs must not be conflated.
         #expect(!incoming.contains("kdeconnect.mpris.request"))
-        #expect(!incoming.contains("kdeconnect.findmyphone.request"))
         #expect(!outgoing.contains("kdeconnect.mpris"))
         #expect(!outgoing.contains("kdeconnect.telephony"))
         #expect(!incoming.contains("kdeconnect.mousepad.keyboardstate"))

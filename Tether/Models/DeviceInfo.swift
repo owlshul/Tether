@@ -100,7 +100,9 @@ public struct DeviceInfo: Codable, Sendable, Identifiable {
         // Phone storage, for Finder
         "kdeconnect.sftp",
         // Remote commands
-        "kdeconnect.runcommand.request"
+        "kdeconnect.runcommand.request",
+        // The phone ringing this Mac
+        "kdeconnect.findmyphone.request",
     ]
 
     /// Packet types we emit. A peer only accepts a type that appears here.
