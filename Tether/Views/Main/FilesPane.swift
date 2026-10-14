@@ -20,16 +20,9 @@ struct FilesPane: View {
                     Text("Send to \(device.name)")
                     Text("Or drop files anywhere in this window.")
                 }
-                if PhoneFilesController.shared.isEnabled {
-                    LabeledContent {
-                        Button("Show in Finder") { PhoneFilesController.shared.showInFinder(device.id) }
-                            .disabled(!PhoneFilesController.shared.mountedDevices.contains(device.id))
-                    } label: {
-                        Text("Browse \(device.name)")
-                        Text("While it's connected, the phone is a drive in Finder's sidebar.")
-                    }
-                }
             }
+
+            PhoneDriveSection(device: device)
 
             Section {
                 if device.transfers.isEmpty {
@@ -61,6 +54,70 @@ struct FilesPane: View {
     }
 }
 
+/// The phone's drive in Finder: whether it's mounted, and eject or mount it.
+private struct PhoneDriveSection: View {
+    let device: DeviceViewModel
+    @Bindable private var files = PhoneFilesController.shared
+
+    var body: some View {
+        let state = files.driveState(for: device.id)
+        Section {
+            LabeledContent {
+                HStack(spacing: 8) {
+                    switch state {
+                    case .mounted:
+                        Button("Eject") { files.eject(device.id) }
+                        Button("Show in Finder") { files.showInFinder(device.id) }
+                            .keyboardShortcut(.defaultAction)
+                    case .ejected, .failed:
+                        Button("Mount") { files.mountAgain(device.id) }
+                    case .turnedOff:
+                        Button("Turn On") { files.isEnabled = true }
+                    case .mounting:
+                        ProgressView().controlSize(.small)
+                    case .notConnected:
+                        EmptyView()
+                    }
+                }
+            } label: {
+                Label {
+                    Text(title(for: state))
+                    Text(detail(for: state))
+                } icon: {
+                    Image(systemName: state == .mounted ? "externaldrive.fill.badge.checkmark" : "externaldrive")
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(state == .mounted ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary))
+                        .contentTransition(.symbolEffect(.replace))
+                }
+            }
+        } header: {
+            Text("Phone Drive")
+        }
+    }
+
+    private func title(for state: PhoneFilesController.DriveState) -> String {
+        switch state {
+        case .mounted: "Mounted in Finder"
+        case .mounting: "Mounting…"
+        case .ejected: "Ejected"
+        case .failed: "Couldn't mount"
+        case .turnedOff: "Turned off"
+        case .notConnected: "Not connected"
+        }
+    }
+
+    private func detail(for state: PhoneFilesController.DriveState) -> String {
+        switch state {
+        case .mounted: "\(device.name)'s storage is a drive in Finder's sidebar. Ejecting stops it until you mount it again."
+        case .mounting: "Connecting to \(device.name)'s storage."
+        case .ejected: "The drive was ejected. Mount it again, or it comes back the next time \(device.name) connects."
+        case .failed(let reason): reason
+        case .turnedOff: "Phones aren't mounted as drives. You can change this in Settings › Files."
+        case .notConnected: "The drive appears when \(device.name) connects."
+        }
+    }
+}
+
 struct TransferRow: View {
     let item: TransferItem
 
@@ -81,9 +138,11 @@ struct TransferRow: View {
                         .controlSize(.small)
                 }
 
+                // Darker than the system's secondary grey, which washes out on glass
+                // and reads as an inactive window.
                 Text(detail)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary.opacity(0.7))
                     .lineLimit(1)
             }
 
