@@ -87,8 +87,11 @@ private struct NotificationRow: View {
                 }
                 .padding(.top, 4)
                 .onAppear { isReplyFocused = true }
-            } else if notification.replyId != nil || notification.isDismissable {
+            } else if notification.code != nil || notification.replyId != nil || notification.isDismissable {
                 HStack(spacing: 16) {
+                    if let code = notification.code {
+                        CopyCodeButton(code: code)
+                    }
                     if notification.replyId != nil {
                         Button("Reply") { isReplying = true }
                     }
@@ -102,6 +105,9 @@ private struct NotificationRow: View {
         }
         .padding(.vertical, 4)
         .contextMenu {
+            if let code = notification.code {
+                Button("Copy Code \(code)") { NotificationPlugin.copyToPasteboard(code) }
+            }
             if notification.replyId != nil {
                 Button("Reply") { isReplying = true }
             }
@@ -121,6 +127,27 @@ private struct NotificationRow: View {
         device.reply(to: notification, text: text)
         reply = ""
         isReplying = false
+    }
+}
+
+/// Copies a verification code and says so for a moment.
+struct CopyCodeButton: View {
+    let code: String
+    @State private var copied = false
+
+    var body: some View {
+        Button {
+            NotificationPlugin.copyToPasteboard(code)
+            copied = true
+            Task {
+                try? await Task.sleep(for: .seconds(1.5))
+                copied = false
+            }
+        } label: {
+            Text(copied ? "Copied" : "Copy Code \(code)")
+                .monospacedDigit()
+        }
+        .accessibilityLabel(copied ? "Copied" : "Copy code \(code.map(String.init).joined(separator: " "))")
     }
 }
 

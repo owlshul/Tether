@@ -240,11 +240,16 @@ private struct NotificationPreviewRow: View {
                 Text(item.text)
                     .lineLimit(2)
             }
+            if let code = item.code {
+                CopyCodeButton(code: code)
+                    .buttonStyle(.link)
+                    .padding(.top, 2)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 11)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 }
 
