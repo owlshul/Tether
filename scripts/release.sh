@@ -112,6 +112,30 @@ if [[ "${1:-}" == "--publish" ]]; then
     "$DIST/SHA256SUMS-$VERSION.txt" \
     --target main --title "Tether $VERSION" --notes-file "$body"
 
+  echo "\n==> Updating updates/latest.json"
+  # The in-app updater reads this through raw.githubusercontent.com, which,
+  # unlike GitHub's API, isn't limited to 60 requests an hour per network.
+  mkdir -p "$ROOT/updates"
+  /usr/bin/python3 -I - "$VERSION" "$notes" "$DIST" "$ROOT/updates/latest.json" <<'PY'
+import hashlib, json, os, sys
+version, notes, dist, out = sys.argv[1:]
+archives = {}
+for label in ("AppleSilicon", "Intel"):
+    name = f"Tether-{version}-{label}.zip"
+    path = os.path.join(dist, name)
+    with open(path, "rb") as f:
+        digest = hashlib.sha256(f.read()).hexdigest()
+    archives[label] = {"name": name, "size": os.path.getsize(path), "sha256": digest}
+manifest = {"version": version, "tag": f"v{version}", "notes": open(notes).read().strip(), "archives": archives}
+with open(out, "w") as f:
+    json.dump(manifest, f, indent=2, ensure_ascii=False)
+    f.write("\n")
+PY
+  git -C "$ROOT" add updates/latest.json
+  git -C "$ROOT" commit -qm "Update manifest for $VERSION"
+  git -C "$ROOT" push -q
+  echo "    updates/latest.json → $VERSION"
+
   echo "\n==> Updating the Homebrew cask"
   sha_arm=$(shasum -a 256 "$DIST/Tether-$VERSION-AppleSilicon.dmg" | cut -d' ' -f1)
   sha_intel=$(shasum -a 256 "$DIST/Tether-$VERSION-Intel.dmg" | cut -d' ' -f1)

@@ -2,8 +2,11 @@
 //  ReleaseFeed.swift
 //  Tether
 //
-//  Reads the newest release from GitHub. There is no appcast: the GitHub
-//  release that people download from is also what the app reads.
+//  Finds the newest release. It reads updates/latest.json from the repository
+//  through raw.githubusercontent.com first: GitHub's API allows only 60
+//  requests an hour per public IP address without an account, which a shared
+//  network (a university, an office) uses up for everyone. The API is the
+//  fallback. release.sh writes the manifest when it publishes a release.
 //
 
 import Foundation
@@ -56,18 +59,37 @@ nonisolated enum ReleaseFeed {
 
         var errorDescription: String? {
             switch self {
+            case .badResponse(403), .badResponse(429): "GitHub is limiting requests from this network. Try again later."
             case .badResponse(let status): "GitHub answered with status \(status)."
             case .unreadable: "The release information couldn't be read."
             }
         }
     }
 
+    static let manifestURL = URL(string: "https://raw.githubusercontent.com/\(repository)/main/updates/latest.json")!
+
     /// The latest release, or nil when it has no zip for this Mac (such a
     /// release can only be installed by hand).
     static func latest() async throws -> AvailableRelease? {
-        var request = URLRequest(url: latestURL, timeoutInterval: 20)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        // GitHub's API refuses requests without a User-Agent.
+        if ProcessInfo.processInfo.environment["TETHER_UPDATE_FEED"] == nil {
+            do {
+                let manifest = try JSONDecoder().decode(UpdateManifest.self, from: try await fetch(manifestURL))
+                return available(from: manifest)
+            } catch {
+                TetherLog("[Updater] Manifest unavailable (\(error.localizedDescription)); asking GitHub's API")
+            }
+        }
+        guard let release = try? JSONDecoder().decode(GitHubRelease.self, from: try await fetch(latestURL, api: true)) else {
+            throw FeedError.unreadable
+        }
+        return available(from: release)
+    }
+
+    private static func fetch(_ url: URL, api: Bool = false) async throws -> Data {
+        // Generous timeout: a phone hotspot can be slow.
+        var request = URLRequest(url: url, timeoutInterval: 45)
+        if api { request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept") }
+        // GitHub refuses requests without a User-Agent.
         request.setValue("Tether/\(AppVersion.current?.description ?? "0")", forHTTPHeaderField: "User-Agent")
 
         let configuration = URLSessionConfiguration.ephemeral
@@ -75,10 +97,23 @@ nonisolated enum ReleaseFeed {
         let (data, response) = try await URLSession(configuration: configuration).data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard status == 200 else { throw FeedError.badResponse(status) }
-        guard let release = try? JSONDecoder().decode(GitHubRelease.self, from: data) else {
-            throw FeedError.unreadable
-        }
-        return available(from: release)
+        return data
+    }
+
+    static func available(from manifest: UpdateManifest) -> AvailableRelease? {
+        guard let version = AppVersion(manifest.version),
+              let archive = manifest.archives[architectureLabel],
+              let url = URL(string: "https://github.com/\(repository)/releases/download/\(manifest.tag)/\(archive.name)"),
+              let page = URL(string: "https://github.com/\(repository)/releases/tag/\(manifest.tag)") else { return nil }
+        return AvailableRelease(
+            version: version,
+            tag: manifest.tag,
+            notes: manifest.notes,
+            pageURL: page,
+            archiveURL: url,
+            archiveSize: archive.size,
+            archiveSHA256: archive.sha256.lowercased()
+        )
     }
 
     static func available(from release: GitHubRelease) -> AvailableRelease? {
@@ -142,4 +177,20 @@ nonisolated struct GitHubRelease: Decodable, Sendable {
     let draft: Bool
     let prerelease: Bool
     let assets: [Asset]
+}
+
+/// updates/latest.json in the repository, written by scripts/release.sh.
+nonisolated struct UpdateManifest: Decodable, Sendable {
+    struct Archive: Decodable, Sendable {
+        let name: String
+        let size: Int64
+        let sha256: String
+    }
+
+    let version: String
+    let tag: String
+    /// The changelog, without download and install instructions.
+    let notes: String
+    /// Keyed by architecture label: "AppleSilicon", "Intel".
+    let archives: [String: Archive]
 }

@@ -54,6 +54,19 @@ struct ReleaseFeedTests {
         #expect(found.notes == "### New\n- A thing")
     }
 
+    @Test func readsTheRepositoryManifest() throws {
+        let json = Data("""
+            {"version": "1.7", "tag": "v1.7", "notes": "### New\\n- A thing",
+             "archives": {"AppleSilicon": {"name": "Tether-1.7-AppleSilicon.zip", "size": 10, "sha256": "ABC"},
+                          "Intel": {"name": "Tether-1.7-Intel.zip", "size": 11, "sha256": "DEF"}}}
+            """.utf8)
+        let manifest = try JSONDecoder().decode(UpdateManifest.self, from: json)
+        let found = try #require(ReleaseFeed.available(from: manifest))
+        #expect(found.version == AppVersion("1.7"))
+        #expect(found.archiveURL.absoluteString == "https://github.com/subhashhhhhh/Tether/releases/download/v1.7/Tether-1.7-\(ReleaseFeed.architectureLabel).zip")
+        #expect(found.archiveSHA256 == (ReleaseFeed.architectureLabel == "Intel" ? "def" : "abc"))
+    }
+
     @Test func offersNothingWithoutAZip() {
         #expect(ReleaseFeed.available(from: release(assets: ["Tether-1.6-AppleSilicon.dmg", "Tether-1.6-Intel.dmg"])) == nil)
         #expect(ReleaseFeed.available(from: release(assets: ["Tether-1.6-AppleSilicon.zip", "Tether-1.6-Intel.zip"], prerelease: true)) == nil)
