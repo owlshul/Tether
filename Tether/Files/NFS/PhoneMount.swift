@@ -133,6 +133,14 @@ final class PhoneMount {
 
     /// Unmounts phones left mounted by a previous run that didn't quit cleanly.
     static func cleanUpStaleMounts() {
+        // Another copy of Tether (a development build, say) may be serving
+        // those drives right now; they're only leftovers when it's alone.
+        let others = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
+            .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
+        guard others.isEmpty else {
+            TetherLog("[Files] Another Tether is running; leaving its phone drives alone")
+            return
+        }
         let directory = mountsDirectory.standardizedFileURL.path
         for path in mountedPaths() where path.hasPrefix(directory + "/") {
             forceUnmount(URL(fileURLWithPath: path))
