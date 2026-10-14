@@ -24,8 +24,11 @@ public final class RunCommandPlugin: ObservableObject, TetherPlugin, @unchecked 
     private var activeProcesses: [UInt32: Process] = [:]
     private var executionCounter: UInt32 = 0
     private let userDefaultsKey = "tether_remote_commands"
+    private let defaults: UserDefaults
 
-    public init() {
+    /// Tests pass their own `defaults` so they never touch the saved commands.
+    public init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         loadCommands()
     }
 
@@ -92,7 +95,7 @@ public final class RunCommandPlugin: ObservableObject, TetherPlugin, @unchecked 
     }
 
     private func loadCommands() {
-        if let data = UserDefaults.standard.data(forKey: userDefaultsKey),
+        if let data = defaults.data(forKey: userDefaultsKey),
            let loaded = try? JSONDecoder().decode([RemoteCommand].self, from: data) {
             self.commands = loaded
         } else {
@@ -103,7 +106,7 @@ public final class RunCommandPlugin: ObservableObject, TetherPlugin, @unchecked 
 
     private func saveCommands() {
         if let data = try? JSONEncoder().encode(commands) {
-            UserDefaults.standard.set(data, forKey: userDefaultsKey)
+            defaults.set(data, forKey: userDefaultsKey)
         }
     }
 

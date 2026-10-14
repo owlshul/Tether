@@ -324,7 +324,12 @@ struct TetherTests {
     }
 
     @Test func testRemoteCommandExecution() async throws {
-        let plugin = RunCommandPlugin()
+        // Its own settings: the tests run inside the app, and the standard
+        // defaults hold the commands people actually use.
+        let suite = "TetherTests.RunCommand.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let plugin = RunCommandPlugin(defaults: defaults)
         let cmd = RemoteCommand(id: "test_echo", name: "Echo Test", command: "echo 'Antigravity Test'")
         plugin.addCommand(cmd)
 
