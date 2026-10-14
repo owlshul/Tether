@@ -466,6 +466,16 @@ public final class DeviceConnection: @unchecked Sendable {
         }
     }
 
+    /// How far apart the two clocks may be for a pairing request to count, as in
+    /// KDE Connect. A request replayed later carries an old timestamp.
+    private static let allowedPairClockDifference: Int64 = 30 * 60
+    /// A pairing request nobody answers is dropped after this long.
+    private static let pairingTimeout: TimeInterval = 30
+    private var pairingTimeoutWork: DispatchWorkItem?
+
+    // Follows KDE Connect's pairing rules: requests carry a timestamp, accepts
+    // don't. Sending a timestamp in an accept makes an already paired peer
+    // treat it as a new request and unpair.
     private func handlePairPacket(_ packet: NetworkPacket) {
         let wantsPair = packet.bool(for: "pair", default: false)
         guard let info = peerDeviceInfo else { return }
@@ -475,31 +485,42 @@ public final class DeviceConnection: @unchecked Sendable {
         if wantsPair {
             switch pairState {
             case .requested:
-                // We requested and they accepted!
-                let timestamp = Int64(Date().timeIntervalSince1970)
-                let confirmPacket = NetworkPacket(
-                    type: "kdeconnect.pair",
-                    body: [
-                        "pair": true,
-                        "timestamp": timestamp
-                    ]
-                )
-                send(packet: confirmPacket)
+                // We asked and they accepted.
+                cancelPairingTimeout()
                 completePairing()
-            case .notPaired:
-                // They requested pairing with us
-                self.pairState = .requestedByPeer
-                delegate?.deviceConnection(self, didUpdatePairState: .requestedByPeer)
-            case .paired:
-                break
             case .requestedByPeer:
-                break
+                TetherLog("[DeviceConnection] Ignoring a second pairing request before the first one timed out")
+            case .paired:
+                // A request from a paired device means it forgot this Mac, for
+                // example after KDE Connect was reinstalled. Its certificate was
+                // verified, so this is the real device: start over.
+                guard packet.has("timestamp") else {
+                    TetherLog("[DeviceConnection] Ignoring a pairing accept from a device already paired")
+                    return
+                }
+                TetherLog("[DeviceConnection] \(info.deviceName) asked to pair again; it no longer trusts this Mac")
+                TrustStore.shared.remove(deviceId: info.deviceId, reason: "the device asked to pair again")
+                pairState = .notPaired
+                delegate?.deviceConnection(self, didUpdatePairState: .notPaired)
+                receivePairingRequest(packet, from: info)
+            case .notPaired:
+                receivePairingRequest(packet, from: info)
             }
         } else {
-            // Unpair / reject. Only a verified peer may revoke its own trust entry,
-            // otherwise anyone spoofing the device ID could unpair the real phone.
-            TetherLog("[DeviceConnection] Peer rejected or unpaired from us")
-            if pairState == .paired {
+            // Unpair, reject or cancel. Only a verified peer may revoke its own
+            // trust entry, otherwise anyone spoofing the device ID could unpair
+            // the real phone.
+            cancelPairingTimeout()
+            switch pairState {
+            case .notPaired:
+                TetherLog("[DeviceConnection] Ignoring an unpair request from a device that isn't paired")
+                return
+            case .requested:
+                TetherLog("[DeviceConnection] \(info.deviceName) declined pairing")
+            case .requestedByPeer:
+                TetherLog("[DeviceConnection] \(info.deviceName) cancelled its pairing request")
+            case .paired:
+                TetherLog("[DeviceConnection] \(info.deviceName) unpaired from this Mac")
                 TrustStore.shared.remove(deviceId: info.deviceId, reason: "the device unpaired from this Mac")
             }
             self.pairState = .notPaired
@@ -510,6 +531,39 @@ public final class DeviceConnection: @unchecked Sendable {
         }
     }
 
+    private func receivePairingRequest(_ packet: NetworkPacket, from info: DeviceInfo) {
+        let timestamp = packet.int64(for: "timestamp")
+        guard timestamp > 0 else {
+            TetherLog("[DeviceConnection] Ignoring a pairing request without a timestamp from \(info.deviceName)")
+            return
+        }
+        let now = Int64(Date().timeIntervalSince1970)
+        guard abs(timestamp - now) <= Self.allowedPairClockDifference else {
+            TetherLog("[DeviceConnection] Ignoring a pairing request from \(info.deviceName): the clocks differ by \(abs(timestamp - now)) seconds")
+            return
+        }
+        pairState = .requestedByPeer
+        startPairingTimeout()
+        delegate?.deviceConnection(self, didUpdatePairState: .requestedByPeer)
+    }
+
+    private func startPairingTimeout() {
+        cancelPairingTimeout()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.pairState == .requested || self.pairState == .requestedByPeer else { return }
+            TetherLog("[DeviceConnection] Pairing with \(self.peerDeviceInfo?.deviceName ?? "peer") timed out")
+            self.pairState = .notPaired
+            self.delegate?.deviceConnection(self, didUpdatePairState: .notPaired)
+        }
+        pairingTimeoutWork = work
+        connectionQueue.asyncAfter(deadline: .now() + Self.pairingTimeout, execute: work)
+    }
+
+    private func cancelPairingTimeout() {
+        pairingTimeoutWork?.cancel()
+        pairingTimeoutWork = nil
+    }
+
     public func requestPairing() {
         guard isEncrypted else {
             TetherLog("[DeviceConnection] TLS not ready yet, queuing pairing request")
@@ -517,7 +571,14 @@ public final class DeviceConnection: @unchecked Sendable {
             return
         }
         TetherLog("[DeviceConnection] Sending pair request to \(peerDeviceInfo?.deviceName ?? "peer")")
+        if pairState == .requestedByPeer {
+            // They asked first: answering is accepting.
+            acceptPairing()
+            return
+        }
+        guard pairState == .notPaired else { return }
         self.pairState = .requested
+        startPairingTimeout()
         let timestamp = Int64(Date().timeIntervalSince1970)
         let packet = NetworkPacket(
             type: "kdeconnect.pair",
@@ -531,21 +592,20 @@ public final class DeviceConnection: @unchecked Sendable {
     }
 
     public func acceptPairing() {
+        guard pairState == .requestedByPeer else {
+            TetherLog("[DeviceConnection] No pairing request to accept from \(peerDeviceInfo?.deviceName ?? "peer"); it may have timed out")
+            return
+        }
         TetherLog("[DeviceConnection] Accepting pairing request from \(peerDeviceInfo?.deviceName ?? "peer")")
-        let timestamp = Int64(Date().timeIntervalSince1970)
-        let packet = NetworkPacket(
-            type: "kdeconnect.pair",
-            body: [
-                "pair": true,
-                "timestamp": timestamp
-            ]
-        )
-        send(packet: packet)
+        cancelPairingTimeout()
+        // An accept carries no timestamp; see handlePairPacket.
+        send(packet: NetworkPacket(type: "kdeconnect.pair", body: ["pair": true]))
         completePairing()
     }
 
     public func rejectPairing() {
         TetherLog("[DeviceConnection] Rejecting pairing request from \(peerDeviceInfo?.deviceName ?? "peer")")
+        cancelPairingTimeout()
         let packet = NetworkPacket(type: "kdeconnect.pair", body: ["pair": false])
         send(packet: packet)
         self.pairState = .notPaired
