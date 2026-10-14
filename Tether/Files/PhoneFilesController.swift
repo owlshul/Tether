@@ -43,12 +43,30 @@ final class PhoneFilesController {
     private(set) var mountError: [String: String] = [:]
     /// Phones currently mounted.
     private(set) var mountedDevices = Set<String>()
+    /// Phones being mounted right now.
+    private(set) var mountingDevices = Set<String>()
+    /// Phones whose drive was ejected (in Finder or in Tether). They stay
+    /// unmounted until mounted again by hand or the phone reconnects.
+    private(set) var ejectedDevices = Set<String>()
+
+    enum DriveState: Equatable {
+        case turnedOff, notConnected, mounting, mounted, ejected, failed(String)
+    }
+
+    func driveState(for deviceId: String) -> DriveState {
+        if !isEnabled { return .turnedOff }
+        if mountedDevices.contains(deviceId) { return .mounted }
+        if mountingDevices.contains(deviceId) { return .mounting }
+        if !connected.contains(deviceId) { return .notConnected }
+        if ejectedDevices.contains(deviceId) { return .ejected }
+        if let error = mountError[deviceId] { return .failed(error) }
+        return .mounting
+    }
 
     private var paired: [String: String] = [:]
     private var connected = Set<String>()
     private var routers: [String: PhoneFilesRouter] = [:]
     private var mounts: [String: PhoneMount] = [:]
-    private var busy = Set<String>()
     private var started = false
 
     private init() {
@@ -64,6 +82,43 @@ final class PhoneFilesController {
                 for mount in PhoneFilesController.shared.mounts.values { mount.unmountNow() }
             }
         }
+        // Notice a drive ejected in Finder (or by anything else), so Tether
+        // stops its server and shows it as ejected instead of mounted.
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didUnmountNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { PhoneFilesController.shared.checkForEjectedDrives() }
+        }
+        Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(10))
+                self?.checkForEjectedDrives()
+            }
+        }
+    }
+
+    private func checkForEjectedDrives() {
+        for (deviceId, mount) in mounts where !PhoneMount.isMounted(mount.mountPoint) {
+            TetherLog("[Files] \(mount.name) was ejected")
+            mounts.removeValue(forKey: deviceId)
+            mountedDevices.remove(deviceId)
+            ejectedDevices.insert(deviceId)
+            Task {
+                await mount.stopAfterEject()
+                if let router = routers[deviceId] { await router.close() }
+            }
+        }
+    }
+
+    /// Ejects the phone's drive; it stays ejected until mounted again or the phone reconnects.
+    func eject(_ deviceId: String) {
+        ejectedDevices.insert(deviceId)
+        Task { await unmount(deviceId) }
+    }
+
+    /// Mounts the phone's drive again, e.g. after it was ejected in Finder.
+    func mountAgain(_ deviceId: String) {
+        ejectedDevices.remove(deviceId)
+        mountError[deviceId] = nil
+        Task { await mount(deviceId) }
     }
 
     // MARK: - Settings per phone
@@ -124,6 +179,8 @@ final class PhoneFilesController {
             UserDefaults.standard.removeObject(forKey: SFTPTransport.hostKeyDefaultsKey(deviceId))
             routers.removeValue(forKey: deviceId)
         }
+        // A phone that disconnected gets its drive back automatically next time.
+        ejectedDevices.subtract(connected.subtracting(newConnected))
         paired = newPaired
         connected = newConnected
         Task { await syncMounts() }
@@ -131,7 +188,7 @@ final class PhoneFilesController {
 
     /// Mounts connected, paired phones and unmounts the rest.
     private func syncMounts() async {
-        let wanted = isEnabled ? connected.filter { paired[$0] != nil } : []
+        let wanted = isEnabled ? connected.filter { paired[$0] != nil && !ejectedDevices.contains($0) } : []
         for deviceId in Array(mounts.keys) where !wanted.contains(deviceId) || mounts[deviceId]?.name != Self.mountName(paired[deviceId]) {
             await unmount(deviceId)
         }
@@ -156,9 +213,9 @@ final class PhoneFilesController {
     }
 
     private func mount(_ deviceId: String) async {
-        guard !busy.contains(deviceId), let name = paired[deviceId] else { return }
-        busy.insert(deviceId)
-        defer { busy.remove(deviceId) }
+        guard !mountingDevices.contains(deviceId), mounts[deviceId] == nil, let name = paired[deviceId] else { return }
+        mountingDevices.insert(deviceId)
+        defer { mountingDevices.remove(deviceId) }
 
         let mount = PhoneMount(deviceId: deviceId, name: name, router: router(for: deviceId))
         do {

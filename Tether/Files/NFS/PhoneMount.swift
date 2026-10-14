@@ -82,6 +82,14 @@ final class PhoneMount {
         TetherLog("[Files] Unmounted \(name)")
     }
 
+    /// Cleans up after the drive was ejected from outside Tether.
+    func stopAfterEject() async {
+        await server.stop()
+        hostName?.remove()
+        hostName = nil
+        Self.removeMountPoint(mountPoint)
+    }
+
     /// Unmounts synchronously, for when Tether is quitting.
     func unmountNow() {
         Self.forceUnmount(mountPoint)
