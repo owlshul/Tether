@@ -20,6 +20,12 @@ struct TetherApp: App {
         #endif
 
         _appModel = State(initialValue: .shared)
+
+        // Unit tests run inside a copy of the app. Starting the services there
+        // would connect to the phone next to the real Tether and unmount its
+        // phone drive as a "leftover".
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return }
+
         // Eagerly initialize identity on main thread
         _ = DeviceIdentity.shared
         // Start background discovery and network services
