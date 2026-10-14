@@ -2,8 +2,8 @@
 //  MenuBarView.swift
 //  Tether
 //
-//  Menu bar popover. Laid out like Control Center: the connected device and its
-//  controls up top, then menu-style rows for the app itself.
+//  Menu bar popover: floating glass panels, the connected phone first (wearing
+//  the same picture as the phone card in the window), then menu-style rows.
 //
 
 import SwiftUI
@@ -22,26 +22,29 @@ public struct MenuBarView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
+                .staggeredEntrance(0)
 
             if let request = appModel.incomingPairRequest {
                 pairRequestCard(request)
+                    .staggeredEntrance(1)
             }
 
             if let device = appModel.primaryDevice {
                 deviceCard(device)
+                    .staggeredEntrance(1)
                 if device.hasNowPlaying {
                     nowPlayingCard(device)
+                        .staggeredEntrance(2)
                 }
             } else {
                 emptyCard
+                    .staggeredEntrance(1)
             }
 
             if !appModel.availableDevices.isEmpty {
                 nearbyCard
+                    .staggeredEntrance(3)
             }
-
-            Divider()
-                .padding(.horizontal, 6)
 
             VStack(spacing: 0) {
                 if let release = UpdateController.shared.availableRelease {
@@ -57,8 +60,8 @@ public struct MenuBarView: View {
                 MenuRow(title: "Quit Tether", systemImage: "power") { NSApp.terminate(nil) }
             }
         }
-        .padding(10)
-        .frame(width: 320)
+        .padding(12)
+        .frame(width: 340)
         .dropDestination(for: URL.self) { urls, _ in
             guard let device = appModel.primaryDevice else { return false }
             let files = urls.filter(\.isFileURL)
@@ -80,7 +83,8 @@ public struct MenuBarView: View {
                     .allowsHitTesting(false)
             }
         }
-        .onAppear { appModel.refreshDiscovery() }
+        // Just the routine announcement: a full sweep makes a connected phone reconnect.
+        .onAppear { appModel.refreshDiscovery(thorough: false) }
     }
 
     // MARK: - Sections
@@ -88,10 +92,12 @@ public struct MenuBarView: View {
     private var header: some View {
         HStack {
             Text("Tether")
-                .font(.headline)
+                .font(.title3.weight(.bold))
             Spacer()
-            Text(appModel.connectedDevices.isEmpty ? "Not Connected" : "Connected")
-                .font(.subheadline)
+            let connected = !appModel.connectedDevices.isEmpty
+            Label(connected ? "Connected" : "Not Connected", systemImage: "circle.fill")
+                .labelStyle(StatusDotLabelStyle(color: connected ? .green : .secondary))
+                .font(.callout)
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 6)
@@ -99,58 +105,74 @@ public struct MenuBarView: View {
     }
 
     private func deviceCard(_ device: DeviceViewModel) -> some View {
-        PopoverCard {
-            VStack(spacing: 14) {
-                HStack(spacing: 10) {
-                    DeviceSymbol(type: device.deviceType)
-                        .font(.title)
-                        .frame(width: 30)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(device.name)
-                            .font(.headline)
-                            .lineLimit(1)
-                        HStack(spacing: 10) {
-                            if let battery = device.batteryPercent {
-                                BatteryLabel(percent: battery, isCharging: device.isCharging)
-                            }
-                            if let network = device.networkType, !network.isEmpty {
-                                Text(network)
-                            }
+        VStack(spacing: 14) {
+            HStack(spacing: 12) {
+                Image(systemName: device.deviceType.systemImageName)
+                    .font(.system(size: 26, weight: .light))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.tint)
+                    .frame(width: 30)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(device.name)
+                        .font(.headline)
+                        .lineLimit(1)
+                    HStack(spacing: 10) {
+                        if let battery = device.batteryPercent {
+                            Label("\(battery)%", systemImage: DeviceSymbols.battery(battery, charging: device.isCharging))
                         }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 0)
-                    if appModel.connectedDevices.count > 1 {
-                        Menu {
-                            Picker("Device", selection: $appModel.selectedDeviceId) {
-                                ForEach(appModel.connectedDevices) { Text($0.name).tag(Optional($0.id)) }
-                            }
-                            .pickerStyle(.inline)
-                        } label: {
-                            Image(systemName: "chevron.up.chevron.down")
+                        if let network = device.networkType, !network.isEmpty {
+                            Label(network, systemImage: "cellularbars")
                         }
-                        .menuStyle(.button)
-                        .menuIndicator(.hidden)
-                        .buttonStyle(.borderless)
-                        .fixedSize()
-                        .accessibilityLabel("Choose device")
+                        if device.isViaTailscale {
+                            Label("Tailscale", systemImage: "point.3.connected.trianglepath.dotted")
+                        }
                     }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
-
-                HStack(spacing: 0) {
-                    CircleAction(title: "Find", systemImage: "speaker.wave.3") { device.findMyPhone() }
-                    if device.canLock {
-                        CircleAction(title: "Lock", systemImage: "lock") { device.lockDevice() }
-                    }
-                    CircleAction(title: "Clipboard", systemImage: "doc.on.clipboard") { device.sendClipboard() }
-                    CircleAction(title: "Send File", systemImage: "square.and.arrow.up") {
-                        NSApp.activate()
-                        device.sendFiles(FilePicker.chooseFiles(sendingTo: device.name))
-                    }
-                }
+                Spacer(minLength: 0)
+                if appModel.connectedDevices.count > 1 { deviceSwitcher }
             }
+            .padding(.horizontal, 6)
+            .padding(.top, 4)
+
+            HStack(spacing: 0) {
+                GlassCircleButton(title: "Find", systemImage: "speaker.wave.3.fill", size: 40) { device.findMyPhone() }
+                    .frame(maxWidth: .infinity)
+                if device.canLock {
+                    GlassCircleButton(title: "Lock", systemImage: "lock.fill", size: 40) { device.lockDevice() }
+                        .frame(maxWidth: .infinity)
+                }
+                GlassCircleButton(title: "Clipboard", systemImage: "doc.on.clipboard", size: 40) { device.sendClipboard() }
+                    .frame(maxWidth: .infinity)
+                GlassCircleButton(title: "Send Files", systemImage: "arrow.up.doc", size: 40) {
+                    NSApp.activate()
+                    device.sendFiles(FilePicker.chooseFiles(sendingTo: device.name))
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.bottom, 2)
         }
+        .padding(8)
+        .glassPanel(radius: 20)
+    }
+
+    private var deviceSwitcher: some View {
+        Menu {
+            Picker("Device", selection: $appModel.selectedDeviceId) {
+                ForEach(appModel.connectedDevices) { Text($0.name).tag(Optional($0.id)) }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.callout.weight(.semibold))
+        }
+        .menuStyle(.button)
+        .menuIndicator(.hidden)
+        .buttonStyle(.borderless)
+        .fixedSize()
+        .accessibilityLabel("Choose device")
     }
 
     private func nowPlayingCard(_ device: DeviceViewModel) -> some View {
@@ -287,34 +309,21 @@ private struct PopoverCard<Content: View>: View {
 
     var body: some View {
         content
-            .padding(12)
+            .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12, style: .continuous))
+            .glassPanel(radius: 20)
     }
 }
 
-private struct CircleAction: View {
-    let title: String
-    let systemImage: String
-    let action: () -> Void
+/// A label whose icon is a small coloured status dot.
+private struct StatusDotLabelStyle: LabelStyle {
+    let color: Color
 
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 5) {
-                Image(systemName: systemImage)
-                    .imageScale(.medium)
-                    .fontWeight(.medium)
-                    .frame(width: 36, height: 36)
-                    .background(.tint.opacity(0.15), in: .circle)
-                    .foregroundStyle(.tint)
-                Text(title)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity)
-            .contentShape(.rect)
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 6) {
+            Circle().fill(color).frame(width: 7, height: 7)
+            configuration.title
         }
-        .buttonStyle(.plain)
     }
 }
 
