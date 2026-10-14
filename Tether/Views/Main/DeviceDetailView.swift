@@ -29,9 +29,22 @@ struct DeviceDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .navigationTitle(section == .overview ? device.name : section.title)
+        .navigationTitle(device.name)
         .toolbar {
             if device.isConnected {
+                ToolbarItem(placement: .principal) {
+                    Picker("Section", selection: Binding(get: { section }, set: onSelectSection)) {
+                        ForEach(DeviceSection.allCases) { section in
+                            Text(section.title).tag(section)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                }
+            }
+            // The overview has these on the phone card.
+            if device.isConnected, section != .overview {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button("Find Phone", systemImage: "speaker.wave.3") { device.findMyPhone() }
                         .help("Ring \(device.name) at full volume")
@@ -129,7 +142,7 @@ struct NearbyDeviceView: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            DeviceHero(type: device.deviceType, isActive: true)
+            DeviceHero(type: device.deviceType, isActive: device.status != .offline)
 
             VStack(spacing: 6) {
                 Text(device.name)
@@ -184,7 +197,7 @@ struct OfflineDeviceView: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            DeviceHero(type: device.deviceType, isActive: false)
+            DeviceHero(type: device.deviceType, isActive: device.status != .offline)
 
             VStack(spacing: 6) {
                 Text(device.name)
