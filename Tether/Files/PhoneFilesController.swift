@@ -179,10 +179,17 @@ final class PhoneFilesController {
         if let router = routers[deviceId] { await router.close() }
     }
 
-    /// Opens the phone's drive in Finder.
+    /// Opens the phone's drive in Finder. Through `open` on another thread:
+    /// Tether's main thread must never wait on the drive, because answering
+    /// the drive can need the main thread (e.g. to fetch SFTP login details).
     func showInFinder(_ deviceId: String) {
-        guard let mount = mounts[deviceId] else { return }
-        NSWorkspace.shared.open(mount.mountPoint)
+        guard let path = mounts[deviceId]?.mountPoint.path else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            process.arguments = [path]
+            try? process.run()
+        }
     }
 }
 

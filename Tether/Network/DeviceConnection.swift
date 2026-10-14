@@ -593,7 +593,9 @@ public final class DeviceConnection: @unchecked Sendable {
         TetherLog("[DeviceConnection] Pairing completed successfully with \(info.deviceName) (\(info.deviceId))")
     }
 
-    public func send(packet: NetworkPacket) {
+    // Safe from any thread: it only queues the write on connectionQueue. Kept off
+    // the main actor so serving the phone drive never needs the main thread.
+    nonisolated public func send(packet: NetworkPacket) {
         guard let data = try? packet.serialize() else { return }
         connectionQueue.async { [weak self] in
             guard let self, let ctx = self.sslContext, !self.isClosed else { return }

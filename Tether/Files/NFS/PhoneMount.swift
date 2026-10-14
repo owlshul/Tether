@@ -60,7 +60,7 @@ final class PhoneMount {
             "vers=3", "tcp", "port=\(port)", "mountport=\(port)",
             "soft", "intr", "timeo=100", "retrans=5",       // give up after ~50 s, never hang
             "locallocks", "nonegnamecache",
-            "rsize=262144", "wsize=262144", "readahead=4",   // small requests: the link may be a slow relay
+            "rsize=131072", "wsize=262144", "readahead=1",   // Tether decides how far to read ahead
             "acregmax=10", "acdirmax=10",
         ].joined(separator: ",")
         let result = await Self.run("/sbin/mount_nfs", ["-o", options, "\(serverName):/\(name)", mountPoint.path])
@@ -78,7 +78,7 @@ final class PhoneMount {
         await server.stop()
         hostName?.remove()
         hostName = nil
-        try? FileManager.default.removeItem(at: mountPoint)
+        Self.removeMountPoint(mountPoint)
         TetherLog("[Files] Unmounted \(name)")
     }
 
@@ -86,7 +86,7 @@ final class PhoneMount {
     func unmountNow() {
         Self.forceUnmount(mountPoint)
         hostName?.remove()
-        try? FileManager.default.removeItem(at: mountPoint)
+        Self.removeMountPoint(mountPoint)
     }
 
     // MARK: - Helpers
@@ -99,6 +99,12 @@ final class PhoneMount {
         let path = url.standardizedFileURL.path
         if Darwin.unmount(path, 0) == 0 { return true }
         return Darwin.unmount(path, MNT_FORCE) == 0
+    }
+
+    /// Removes an empty mount folder. Never a recursive delete: if the drive
+    /// were somehow still mounted, that would delete files on the phone.
+    nonisolated static func removeMountPoint(_ url: URL) {
+        Darwin.rmdir(url.standardizedFileURL.path)
     }
 
     static func isMounted(_ url: URL) -> Bool {
@@ -125,7 +131,7 @@ final class PhoneMount {
             TetherLog("[Files] Unmounted leftover \(path)")
         }
         if let leftovers = try? FileManager.default.contentsOfDirectory(atPath: directory) {
-            for item in leftovers { try? FileManager.default.removeItem(atPath: directory + "/" + item) }
+            for item in leftovers { removeMountPoint(URL(fileURLWithPath: directory + "/" + item)) }
         }
     }
 

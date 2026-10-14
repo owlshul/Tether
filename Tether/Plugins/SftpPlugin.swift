@@ -11,7 +11,7 @@
 
 import Foundation
 
-public final class SftpPlugin: TetherPlugin, @unchecked Sendable {
+nonisolated public final class SftpPlugin: TetherPlugin, @unchecked Sendable {
     public let supportedPacketTypes = ["kdeconnect.sftp"]
 
     public struct Credentials: Sendable {

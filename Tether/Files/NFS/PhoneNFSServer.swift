@@ -39,8 +39,15 @@ private nonisolated struct NFSFailure: Error {
 actor PhoneNFSServer {
     private static let nfsProgram: UInt32 = 100003
     private static let mountProgram: UInt32 = 100005
-    private static let chunkSize = 512 * 1024
-    private static let listingLifetime: TimeInterval = 5
+    /// Reads fetch 128 KB at a time, so peeking at a file (as Finder does
+    /// for previews) costs little; reading in order grows the read-ahead.
+    private static let chunkSize = 128 * 1024
+    private static let maxReadAhead = 16          // chunks, i.e. 2 MB
+    private static let maxPrefetches = 4
+    /// A listing younger than this is used as is; older but usable ones are
+    /// served immediately while a fresh copy loads in the background.
+    private static let listingFresh: TimeInterval = 5
+    private static let listingUsable: TimeInterval = 120
 
     let exportPath: String
     private let router: PhoneFilesRouter
@@ -53,7 +60,6 @@ actor PhoneNFSServer {
     // File handles: a random session number plus a per-path number.
     private var paths: [UInt64: String] = [1: PhoneFiles.rootPath]
     private var ids: [String: UInt64] = [PhoneFiles.rootPath: 1]
-    private var nextID: UInt64 = 2
 
     private var listings: [String: (files: [RemoteFile], fetched: Date)] = [:]
     /// What the root lists, and, with one storage volume, that volume's real
@@ -63,11 +69,28 @@ actor PhoneNFSServer {
     private var attributes: [String: RemoteFile] = [:]
     private var chunks = ChunkCache(limit: 128 * 1024 * 1024)
     private var chunkLoads: [String: Task<Data, Error>] = [:]
+    private var listingLoads: [String: Task<[RemoteFile], Error>] = [:]
+    /// Per file: where the last read ended and how far ahead to fetch.
+    private var readPattern: [String: (end: Int64, window: Int)] = [:]
+    private var prefetching = 0
+    /// Fetches from the phone run at most four at a time, so previews being
+    /// generated for a whole folder can't crowd out what you actually opened.
+    private static let maxFetches = 4
+    private var activeFetches = 0
+    private var waitingFetches: [CheckedContinuation<Void, Never>] = []
+    private var stats = Stats()
+
+    private struct Stats {
+        var reads = 0, servedBytes = 0, fetchedBytes = 0, listings = 0, files = Set<String>()
+        var isEmpty: Bool { reads == 0 && listings == 0 }
+    }
 
     /// Files being written, held on the Mac until uploaded.
     private final class Staged {
-        let url: URL
+        var url: URL
         let descriptor: Int32
+        /// Finder's own files, kept on the Mac across mounts.
+        var persistent = false
         var size: Int64 = 0
         var modified = Date()
         var dirty = true
@@ -81,20 +104,25 @@ actor PhoneNFSServer {
 
         deinit {
             close(descriptor)
-            try? FileManager.default.removeItem(at: url)
+            if !persistent { try? FileManager.default.removeItem(at: url) }
         }
     }
     private var staged: [String: Staged] = [:]
     private let stagingDirectory: URL
+    /// Where Finder's .DS_Store and "._" files for this phone are kept, mirroring
+    /// the phone's folders, so view settings (such as turning off previews) stick.
+    private let metadataDirectory: URL
 
     init(name: String, deviceId: String, router: PhoneFilesRouter) {
         exportPath = "/" + name
         self.router = router
-        fsid = UInt64(truncatingIfNeeded: deviceId.hashValue)
+        fsid = Self.stableHash(deviceId)
         stagingDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("TetherNFS-\(deviceId)", isDirectory: true)
         try? FileManager.default.removeItem(at: stagingDirectory)
         try? FileManager.default.createDirectory(at: stagingDirectory, withIntermediateDirectories: true)
+        metadataDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Tether/Finder Metadata/\(deviceId)", isDirectory: true)
 
         let owner = WeakServer()
         rpc = RPCServer { call in
@@ -105,10 +133,28 @@ actor PhoneNFSServer {
     }
 
     func start() async throws -> UInt16 {
-        try await rpc.start()
+        let port = try await rpc.start()
+        Task { [weak self] in
+            while let self, await self.logActivity() {
+                try? await Task.sleep(for: .seconds(10))
+            }
+        }
+        return port
     }
 
+    /// Logs what Finder asked for in the last 10 seconds. Returns false once stopped.
+    private func logActivity() -> Bool {
+        if !stats.isEmpty {
+            TetherLog("[NFS] 10 s: \(stats.reads) reads of \(stats.files.count) file(s), served \(stats.servedBytes / 1024) KB, fetched \(stats.fetchedBytes / 1024) KB from the phone, \(stats.listings) listing(s)")
+            stats = Stats()
+        }
+        return !stopped
+    }
+
+    private var stopped = false
+
     func stop() {
+        stopped = true
         rpc.stop()
         staged.removeAll()
         try? FileManager.default.removeItem(at: stagingDirectory)
@@ -158,13 +204,16 @@ actor PhoneNFSServer {
 
     // MARK: - Handles and attributes
 
+    /// File IDs are derived from the path, so they're the same every time the
+    /// phone is mounted: macOS can then reuse the previews it already made.
     private func handle(for path: String) -> Data {
         let id: UInt64
         if let existing = ids[path] {
             id = existing
         } else {
-            id = nextID
-            nextID += 1
+            var candidate = max(2, Self.stableHash(path))
+            while let taken = paths[candidate], taken != path { candidate &+= 1 }
+            id = candidate
             ids[path] = id
             paths[id] = path
         }
@@ -197,6 +246,16 @@ actor PhoneNFSServer {
         }
     }
 
+    /// FNV-1a: stable across launches, unlike Swift's hashValue.
+    nonisolated static func stableHash(_ text: String) -> UInt64 {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in text.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 0x100_0000_01b3
+        }
+        return hash
+    }
+
     private static func isMacMetadata(_ name: String) -> Bool {
         name.hasPrefix("._") || name == ".DS_Store"
     }
@@ -209,10 +268,38 @@ actor PhoneNFSServer {
     }
 
     private func listing(_ folder: String, fresh: Bool = false) async throws -> [RemoteFile] {
-        if !fresh, let cached = listings[folder], Date().timeIntervalSince(cached.fetched) < Self.listingLifetime {
-            return merged(cached.files, in: folder)
+        if !fresh, let cached = listings[folder] {
+            let age = Date().timeIntervalSince(cached.fetched)
+            if age < Self.listingUsable {
+                if age >= Self.listingFresh { _ = loadListing(folder) } // refresh in the background
+                return merged(cached.files, in: folder)
+            }
         }
-        let files = try await transport { try await $0.list(folder) }
+        let files: [RemoteFile]
+        do {
+            files = try await loadListing(folder).value
+        } catch {
+            throw Self.failure(for: error)
+        }
+        store(files, in: folder)
+        return merged(files, in: folder)
+    }
+
+    /// Lists a folder on the phone, sharing one request between everyone asking.
+    private func loadListing(_ folder: String) -> Task<[RemoteFile], Error> {
+        if let loading = listingLoads[folder] { return loading }
+        stats.listings += 1
+        let router = router
+        let task = Task { try await router.run { try await $0.list(folder) } }
+        listingLoads[folder] = task
+        Task {
+            if let files = try? await task.value { store(files, in: folder) }
+            listingLoads[folder] = nil
+        }
+        return task
+    }
+
+    private func store(_ files: [RemoteFile], in folder: String) {
         listings[folder] = (files, Date())
         if folder == PhoneFiles.rootPath {
             rootEntries = Set(files.map(\.path))
@@ -220,11 +307,35 @@ actor PhoneNFSServer {
             volumeRoot = parents.count == 1 ? parents.first : nil
         }
         for file in files { attributes[file.path] = file }
-        return merged(files, in: folder)
+    }
+
+    private func metadataURL(for path: String) -> URL {
+        metadataDirectory.appendingPathComponent(String(path.drop { $0 == "/" }))
+    }
+
+    /// Opens Finder's saved files for a folder, so they're served like staged ones.
+    private func loadSavedMetadata(in folder: String) {
+        let real = folder == PhoneFiles.rootPath ? volumeRoot : folder
+        guard let real, let names = try? FileManager.default.contentsOfDirectory(atPath: metadataURL(for: real).path) else { return }
+        for name in names where Self.isMacMetadata(name) {
+            let path = joinPath(real, name)
+            guard staged[path] == nil else { continue }
+            let url = metadataURL(for: path)
+            let descriptor = open(url.path, O_RDWR)
+            guard descriptor >= 0 else { continue }
+            let file = Staged(url: url, descriptor: descriptor)
+            file.persistent = true
+            file.dirty = false
+            let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+            file.size = (attributes?[.size] as? Int64) ?? 0
+            file.modified = (attributes?[.modificationDate] as? Date) ?? Date()
+            staged[path] = file
+        }
     }
 
     /// The phone's listing plus files that exist only on the Mac so far.
     private func merged(_ files: [RemoteFile], in folder: String) -> [RemoteFile] {
+        loadSavedMetadata(in: folder)
         var result = files.filter { staged[$0.path] == nil }
         for (path, file) in staged where parent(of: path) == folder {
             result.append(RemoteFile(path: path, name: (path as NSString).lastPathComponent,
@@ -246,7 +357,7 @@ actor PhoneNFSServer {
                               size: file.size, modified: file.modified)
         }
         if let cached = attributes[path],
-           let listing = listings[parent(of: path)], Date().timeIntervalSince(listing.fetched) < Self.listingLifetime {
+           let listing = listings[parent(of: path)], Date().timeIntervalSince(listing.fetched) < Self.listingUsable {
             return cached
         }
         let file = try await transport { try await $0.info(path) }
@@ -257,15 +368,19 @@ actor PhoneNFSServer {
     private func transport<T: Sendable>(_ operation: (any PhoneFileTransport) async throws -> T) async throws -> T {
         do {
             return try await router.run(operation)
-        } catch SFTPError.noSuchFile {
-            throw NFSFailure(status: .noEntry)
-        } catch SFTPError.permissionDenied {
-            throw NFSFailure(status: .access)
-        } catch let failure as NFSFailure {
-            throw failure
         } catch {
+            throw Self.failure(for: error)
+        }
+    }
+
+    private static func failure(for error: Error) -> NFSFailure {
+        switch error {
+        case let failure as NFSFailure: return failure
+        case SFTPError.noSuchFile: return NFSFailure(status: .noEntry)
+        case SFTPError.permissionDenied: return NFSFailure(status: .access)
+        default:
             TetherLog("[NFS] \(error.localizedDescription)")
-            throw NFSFailure(status: .io)
+            return NFSFailure(status: .io)
         }
     }
 
@@ -445,10 +560,22 @@ actor PhoneNFSServer {
             if from < to { result.append(chunk[chunk.startIndex + from..<chunk.startIndex + to]) }
         }
 
-        // Read ahead: whoever reads chunk n sequentially wants n+1 and n+2 soon.
-        for ahead in (last + 1)...(last + 2) where ahead * chunkSize < size {
-            _ = startChunkLoad(path, index: ahead, size: size)
+        // Read ahead only for reading in order (playing, copying), growing the
+        // window as it continues. A one-off read, like a preview, fetches nothing extra.
+        let previous = readPattern[path]
+        let inOrder = previous.map { abs($0.end - offset) <= chunkSize } ?? false
+        let window = inOrder ? min(max(2, (previous?.window ?? 0) * 2), Self.maxReadAhead) : 0
+        if readPattern.count > 256 { readPattern.removeAll() }
+        readPattern[path] = (end, window)
+        if window > 0 {
+            for ahead in (last + 1)...(last + Int64(window)) where ahead * chunkSize < size {
+                if prefetching >= Self.maxPrefetches { break }
+                _ = startChunkLoad(path, index: ahead, size: size, prefetch: true)
+            }
         }
+        stats.reads += 1
+        stats.servedBytes += result.count
+        stats.files.insert(path)
         return result
     }
 
@@ -461,23 +588,48 @@ actor PhoneNFSServer {
         }
     }
 
-    private func startChunkLoad(_ path: String, index: Int64, size: Int64) -> Task<Data, Error> {
+    private func startChunkLoad(_ path: String, index: Int64, size: Int64, prefetch: Bool = false) -> Task<Data, Error> {
         let key = "\(index)|\(path)"
         if let loading = chunkLoads[key] { return loading }
         if let cached = chunks.get(path: path, index: index) { return Task { cached } }
+        if prefetch { prefetching += 1 }
         let offset = index * Int64(Self.chunkSize)
         let length = Int(min(Int64(Self.chunkSize), size - offset))
         let router = router
         let task = Task { () throws -> Data in
-            let data = try await router.run { try await $0.read(path, offset: offset, length: length) }
-            return data
+            await self.beginFetch(urgent: !prefetch)
+            defer { Task { await self.endFetch() } }
+            return try await router.run { try await $0.read(path, offset: offset, length: length) }
         }
         chunkLoads[key] = task
         Task {
-            if let data = try? await task.value { chunks.put(path: path, index: index, data: data) }
+            if let data = try? await task.value {
+                chunks.put(path: path, index: index, data: data)
+                stats.fetchedBytes += data.count
+            }
             chunkLoads.removeValue(forKey: key)
+            if prefetch { prefetching -= 1 }
         }
         return task
+    }
+
+    private func beginFetch(urgent: Bool) async {
+        if activeFetches < Self.maxFetches {
+            activeFetches += 1
+            return
+        }
+        await withCheckedContinuation { continuation in
+            // What someone is waiting for goes ahead of read-ahead.
+            if urgent { waitingFetches.insert(continuation, at: 0) } else { waitingFetches.append(continuation) }
+        }
+    }
+
+    private func endFetch() {
+        if waitingFetches.isEmpty {
+            activeFetches -= 1
+        } else {
+            waitingFetches.removeFirst().resume() // hand the slot straight on
+        }
     }
 
     private func write(_ args: inout XDRReader, _ reply: inout XDRWriter) async throws {
@@ -553,7 +705,9 @@ actor PhoneNFSServer {
             guard contents.isEmpty else { throw NFSFailure(status: .notEmpty) }
         }
         let onlyOnMac = staged[target.path] != nil && !(listings[folder]?.files.contains { $0.path == target.path } ?? false)
-        staged.removeValue(forKey: target.path)
+        if let removed = staged.removeValue(forKey: target.path), removed.persistent {
+            try? FileManager.default.removeItem(at: removed.url)
+        }
         if !onlyOnMac, !Self.isMacMetadata(name) {
             try await transport { try await $0.delete(target.path, isDirectory: directory) }
         }
@@ -578,8 +732,14 @@ actor PhoneNFSServer {
         let destination = joinPath(destinationFolder, toName)
 
         if let staging = staged[source.path], Self.isMacMetadata(fromName) || Self.isMacMetadata(toName) {
-            // Metadata never leaves the Mac.
+            // Metadata never leaves the Mac; move its saved copy along.
             staged.removeValue(forKey: source.path)
+            if staging.persistent {
+                let target = metadataURL(for: destination)
+                try? FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try? FileManager.default.removeItem(at: target)
+                if (try? FileManager.default.moveItem(at: staging.url, to: target)) != nil { staging.url = target }
+            }
             staged[destination] = staging
         } else {
             // Upload a file still being written before moving it.
@@ -610,7 +770,7 @@ actor PhoneNFSServer {
         // Leave room for the reply header and trailing fields.
         let budget = max(maxCount - 512, 1024)
 
-        let files = try await listing(folder, fresh: cookie == 0)
+        let files = try await listing(folder)
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         let entries: [(name: String, path: String, file: RemoteFile)] =
             [(".", folder, try await info(folder)), ("..", parent(of: folder), try await info(parent(of: folder)))]
@@ -700,11 +860,20 @@ actor PhoneNFSServer {
     /// The local copy of a file being written, creating it if needed.
     private func stage(_ path: String, keepContents: Bool) async throws -> Staged {
         if let existing = staged[path] { return existing }
-        let url = stagingDirectory.appendingPathComponent(UUID().uuidString)
+        let isMetadata = Self.isMacMetadata((path as NSString).lastPathComponent)
+        let url = isMetadata ? metadataURL(for: path) : stagingDirectory.appendingPathComponent(UUID().uuidString)
+        if isMetadata {
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        }
         FileManager.default.createFile(atPath: url.path, contents: nil)
         let descriptor = open(url.path, O_RDWR)
         guard descriptor >= 0 else { throw NFSFailure(status: .io) }
         let staging = Staged(url: url, descriptor: descriptor)
+        staging.persistent = isMetadata
+        if isMetadata {
+            staged[path] = staging
+            return staging
+        }
 
         if keepContents, let file = try? await info(path), !file.isDirectory, file.size > 0 {
             // Changing part of an existing file: start from its current contents.
