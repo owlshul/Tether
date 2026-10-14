@@ -21,6 +21,9 @@ public struct SettingsView: View {
             Tab("Devices", systemImage: "iphone.gen3") {
                 DevicesSettings(viewModel: viewModel)
             }
+            Tab("Files", systemImage: "folder") {
+                FilesSettings(viewModel: viewModel)
+            }
             Tab("Permissions", systemImage: "hand.raised") {
                 PermissionsSettings(viewModel: viewModel)
             }
@@ -30,6 +33,92 @@ public struct SettingsView: View {
         }
         .frame(width: 560, height: 460)
         .onAppear { viewModel.refresh() }
+    }
+}
+
+// MARK: - Files
+
+struct FilesSettings: View {
+    @Bindable var viewModel: SettingsViewModel
+    @Bindable private var files = PhoneFilesController.shared
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Show phones in Finder", isOn: $files.isEnabled)
+            } footer: {
+                Text("Each paired phone appears under Locations in Finder's sidebar while it's connected. Files download when you open them.")
+                    .foregroundStyle(.secondary)
+            }
+
+            if let error = files.setupError {
+                Section {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.secondary)
+                    Text("If Tether isn't turned on in System Settings › General › Login Items & Extensions › File Providers, turn it on there.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if files.isEnabled {
+                ForEach(viewModel.pairedDevices) { device in
+                    PhoneFilesSection(deviceId: device.deviceId, name: device.deviceName, type: device.deviceType)
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+private struct PhoneFilesSection: View {
+    let deviceId: String
+    let name: String
+    let type: DeviceType
+    @Bindable private var files = PhoneFilesController.shared
+    @State private var method: PhoneFilesMethod = .sftp
+    @State private var address = ""
+
+    var body: some View {
+        Section {
+            Picker("Access files using", selection: $method) {
+                ForEach(PhoneFilesMethod.allCases) { Text($0.title).tag($0) }
+            }
+            .onChange(of: method) { files.setMethod(method, for: deviceId) }
+
+            if method == .adb {
+                TextField("Wireless debugging address", text: $address, prompt: Text("192.168.1.20:37123"))
+                    .onChange(of: address) { files.setADBAddress(address, for: deviceId) }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Use the IP address and port shown in Developer options › Wireless debugging on the phone. The port changes when wireless debugging restarts; until you update it, Tether uses KDE Connect instead.")
+                    Text("ADB gives Tether full access to the phone, and needs adb on this Mac (brew install android-platform-tools).")
+                }
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                if !files.isADBInstalled {
+                    Label("adb isn't installed.", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.secondary)
+                }
+                if let problem = files.adbProblem[deviceId] {
+                    Label(problem, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button("Show in Finder") { files.showInFinder(deviceId) }
+            }
+        } header: {
+            HStack(spacing: 8) {
+                DeviceSymbol(type: type)
+                Text(name)
+            }
+        }
+        .onAppear {
+            method = files.method(for: deviceId)
+            address = files.adbAddress(for: deviceId)
+        }
     }
 }
 

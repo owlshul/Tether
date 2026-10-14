@@ -20,6 +20,15 @@ struct FilesPane: View {
                     Text("Send to \(device.name)")
                     Text("Or drop files anywhere in this window.")
                 }
+                if PhoneFilesController.shared.isEnabled {
+                    LabeledContent {
+                        Button("Show in Finder") { PhoneFilesController.shared.showInFinder(device.id) }
+                            .disabled(!device.isConnected)
+                    } label: {
+                        Text("Browse \(device.name)")
+                        Text("The phone's storage is in Finder's sidebar under Locations.")
+                    }
+                }
             }
 
             Section {

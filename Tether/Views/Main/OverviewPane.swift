@@ -137,6 +137,8 @@ private struct NowPlayingRows: View {
             }
             .labelsHidden()
             .frame(maxWidth: 260)
+            .disabled(!device.canSetVolume)
+            .help(device.canSetVolume ? "Media volume on \(device.name)" : "Start playing something on \(device.name) to change its volume")
         }
         .onAppear { draftVolume = device.volume }
         .onChange(of: device.volume) {

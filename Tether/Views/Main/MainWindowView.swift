@@ -314,9 +314,10 @@ struct TetherCommands: Commands {
                 .keyboardShortcut("f", modifiers: [.command, .shift])
                 .disabled(device == nil)
 
-            Button("Lock Phone") { device?.lockDevice() }
-                .keyboardShortcut("l", modifiers: [.command, .shift])
-                .disabled(device == nil)
+            if device?.canLock == true {
+                Button("Lock") { device?.lockDevice() }
+                    .keyboardShortcut("l", modifiers: [.command, .shift])
+            }
 
             Button("Ping") { device?.ping() }
                 .disabled(device == nil)

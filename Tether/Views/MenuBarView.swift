@@ -140,7 +140,9 @@ public struct MenuBarView: View {
 
                 HStack(spacing: 0) {
                     CircleAction(title: "Find", systemImage: "speaker.wave.3") { device.findMyPhone() }
-                    CircleAction(title: "Lock", systemImage: "lock") { device.lockDevice() }
+                    if device.canLock {
+                        CircleAction(title: "Lock", systemImage: "lock") { device.lockDevice() }
+                    }
                     CircleAction(title: "Clipboard", systemImage: "doc.on.clipboard") { device.sendClipboard() }
                     CircleAction(title: "Send File", systemImage: "square.and.arrow.up") {
                         NSApp.activate()

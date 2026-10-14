@@ -73,6 +73,9 @@ import AppKit
                              dark: name == "installing", to: dir.appendingPathComponent("update-\(name).png"))
         }
 
+        try await render(FilesSettings(viewModel: .mock()), size: CGSize(width: 560, height: 460), dark: false,
+                         to: dir.appendingPathComponent("files-settings-light.png"))
+
         for dark in [false, true] {
             try await render(AboutSettings(), size: CGSize(width: 560, height: 460), dark: dark,
                              to: dir.appendingPathComponent("about-\(dark ? "dark" : "light").png"))

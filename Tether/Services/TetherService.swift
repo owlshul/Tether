@@ -34,6 +34,7 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
     public let presenterPlugin = PresenterPlugin()
     public let smsPlugin = SMSPlugin()
     public let runCommandPlugin = RunCommandPlugin()
+    public let sftpPlugin = SftpPlugin()
 
     private let udpDiscovery = UDPDiscoveryService()
     private var tailscaleTimer: DispatchSourceTimer?
@@ -65,7 +66,8 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
             mousepadPlugin,
             presenterPlugin,
             smsPlugin,
-            runCommandPlugin
+            runCommandPlugin,
+            sftpPlugin
         ]
         udpDiscovery.delegate = self
         tcpListener.delegate = self
@@ -407,11 +409,19 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
         mediaControlPlugin.sendAction(action, connection: conn)
     }
 
+    /// KDE Connect for Android takes volume changes only through its media
+    /// controls (`kdeconnect.mpris.request` with `setVolume`), applied to the
+    /// active player's stream, so this needs a media app with a session.
+    /// `systemvolume` is the other direction on Android (the phone controlling a
+    /// computer); only desktops report sinks for it.
     public func setPhoneVolume(_ volume: Int, deviceId: String) {
-        guard let conn = connectedDevices[deviceId],
-              let sink = remoteVolumePlugin.sinks[deviceId]?.first(where: { $0.enabled })
-                ?? remoteVolumePlugin.sinks[deviceId]?.first else { return }
-        remoteVolumePlugin.setVolume(sinkName: sink.name, volume: volume, connection: conn)
+        guard let conn = connectedDevices[deviceId] else { return }
+        if !(mediaControlPlugin.players[deviceId] ?? []).isEmpty {
+            mediaControlPlugin.setVolume(volume, connection: conn)
+        } else if let sink = remoteVolumePlugin.sinks[deviceId]?.first(where: { $0.enabled })
+                    ?? remoteVolumePlugin.sinks[deviceId]?.first {
+            remoteVolumePlugin.setVolume(sinkName: sink.name, volume: volume, connection: conn)
+        }
     }
 
     /// Re-reads media and volume state, e.g. when the popover opens.

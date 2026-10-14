@@ -47,6 +47,12 @@ public final class DeviceViewModel: Identifiable, Hashable {
 
     /// True between asking a nearby device to pair and it answering.
     public var isAwaitingPairing = false
+    /// Whether the device accepts lock requests. KDE Connect for Android has no
+    /// lock feature, so this is only true for desktops running KDE Connect.
+    public var canLock = false
+    /// Whether there's anything to set the volume of: on Android, a media app
+    /// with an active session.
+    public var canSetVolume = false
 
     // Action handlers injected by TetherAppModel or mocked
     public var onPing: (() -> Void)?
@@ -196,7 +202,7 @@ extension DeviceViewModel {
             SMSMessage(body: "Sending you the photos from Saturday", addresses: ["Sam Chen"], date: now.addingTimeInterval(-3600 * 30), type: 1, threadId: 103, read: true)
         ])
 
-        return DeviceViewModel(
+        let phone = DeviceViewModel(
             id: "mock_phone",
             name: "Pixel 9 Pro",
             deviceType: .phone,
@@ -222,6 +228,8 @@ extension DeviceViewModel {
                 PhoneNotification(id: "n2", deviceId: "mock_phone", appName: "Gmail", title: "Your order has shipped", text: "Arriving Thursday. Track your package for live updates.", date: now.addingTimeInterval(-1800), replyId: nil, isDismissable: true)
             ]
         )
+        phone.canSetVolume = true
+        return phone
     }
 
     public static func mockConnectedTablet() -> DeviceViewModel {

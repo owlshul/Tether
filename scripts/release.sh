@@ -57,7 +57,7 @@ for pair in "arm64 AppleSilicon" "x86_64 Intel"; do
   minos=$(vtool -show-build "$binary" | awk '/minos/ { print $2; exit }')
   [[ "$minos" == "$MIN_MACOS" ]] || { echo "Expected minimum macOS $MIN_MACOS, got $minos" >&2; exit 1; }
   codesign --verify --deep --strict "$app"
-  for code in "$app" "$app/Contents/PlugIns/TetherShare.appex"; do
+  for code in "$app" "$app/Contents/PlugIns/TetherShare.appex" "$app/Contents/PlugIns/TetherFiles.appex"; do
     [[ "$(codesign -dvv "$code" 2>&1)" == *"Authority=$IDENTITY"* ]] \
       || { echo "$code isn't signed with $IDENTITY" >&2; exit 1; }
   done

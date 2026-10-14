@@ -152,10 +152,7 @@ public final class DeviceConnection: @unchecked Sendable {
 
         var nosigpipe: Int32 = 1
         setsockopt(socketFD, SOL_SOCKET, SO_NOSIGPIPE, &nosigpipe, socklen_t(MemoryLayout<Int32>.size))
-        var keepalive: Int32 = 1
-        setsockopt(socketFD, SOL_SOCKET, SO_KEEPALIVE, &keepalive, socklen_t(MemoryLayout<Int32>.size))
-        var keepaliveTime: Int32 = 10
-        setsockopt(socketFD, IPPROTO_TCP, TCP_KEEPALIVE, &keepaliveTime, socklen_t(MemoryLayout<Int32>.size))
+        SocketTLS.detectDeadPeerQuickly(socketFD)
     }
 
     deinit {
@@ -184,10 +181,7 @@ public final class DeviceConnection: @unchecked Sendable {
 
         var nosigpipe: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &nosigpipe, socklen_t(MemoryLayout<Int32>.size))
-        var keepalive: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, socklen_t(MemoryLayout<Int32>.size))
-        var keepaliveTime: Int32 = 10
-        setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, &keepaliveTime, socklen_t(MemoryLayout<Int32>.size))
+        SocketTLS.detectDeadPeerQuickly(fd)
 
         var tv = timeval(tv_sec: 5, tv_usec: 0)
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))

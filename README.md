@@ -41,6 +41,8 @@ Or get the latest release from the **[Releases page](https://github.com/subhashh
 
 Not sure? Apple menu → **About This Mac**: it says **Chip** on Apple Silicon and **Processor** on Intel. Tether needs **macOS 15 Sequoia** or later.
 
+To see your phone in Finder, allow Tether's Finder extension once: **System Settings › General › Login Items & Extensions › File Providers**, then turn on **Tether**. On the phone, KDE Connect may ask for permission to access files the first time.
+
 Once installed, Tether keeps itself up to date: it checks for a new version once a day, or whenever you choose **Tether › Check for Updates…**, and installs it in place.
 
 On your phone, install **KDE Connect** from [Google Play](https://play.google.com/store/apps/details?id=org.kde.kdeconnect_tp) or [F-Droid](https://f-droid.org/packages/org.kde.kdeconnect_tp/).
@@ -53,7 +55,9 @@ On your phone, install **KDE Connect** from [Google Play](https://play.google.co
 
 **Files, both ways.** Drop files anywhere in the Tether window or on the menu bar popover, or choose **Share › Tether** in Finder, Photos and other apps, to send them to your phone. With more than one phone connected, the Share menu asks which one. Files shared from your phone land in **Downloads** with live progress.
 
-**Clipboard, media and remote control.** Copy on one device, paste on the other. See what's playing on your phone and control playback and volume. **Find Phone** rings it at full volume, and **Lock** locks it.
+**Your phone in Finder.** Your phone appears under *Locations* in Finder's sidebar. Browse its storage, open photos and documents straight from it, and drag files in and out. Files download only when you open them. It uses KDE Connect's file sharing, so it works over Wi-Fi and Tailscale with no extra setup. If you use ADB, you can switch to wireless debugging in **Settings › Files**.
+
+**Clipboard, media and remote control.** Copy on one device, paste on the other. See what's playing on your phone and control playback and volume. **Find Phone** rings it at full volume.
 
 **Your phone as a trackpad and presenter.** KDE Connect's Remote Input and Presentation tools move the pointer, click, scroll, type and show an on-screen laser pointer. This needs Accessibility access, which you can grant from Tether's Overview or Settings.
 
@@ -64,6 +68,8 @@ On your phone, install **KDE Connect** from [Google Play](https://play.google.co
 <p align="center">
   <img src="docs/images/messages.jpg" alt="Tether's Messages view with a reply from a notification banner" />
 </p>
+
+See the **[Roadmap](ROADMAP.md)** for what's coming next and what isn't possible with KDE Connect.
 
 ## Use it from anywhere with Tailscale
 

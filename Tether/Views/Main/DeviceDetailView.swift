@@ -35,8 +35,10 @@ struct DeviceDetailView: View {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button("Find Phone", systemImage: "speaker.wave.3") { device.findMyPhone() }
                         .help("Ring \(device.name) at full volume")
-                    Button("Lock", systemImage: "lock") { device.lockDevice() }
-                        .help("Lock \(device.name)")
+                    if device.canLock {
+                        Button("Lock", systemImage: "lock") { device.lockDevice() }
+                            .help("Lock \(device.name)")
+                    }
                     Button("Send Clipboard", systemImage: "doc.on.clipboard") { device.sendClipboard() }
                         .help("Send this Mac's clipboard to \(device.name)")
                     Button("Send Files", systemImage: "square.and.arrow.up") {

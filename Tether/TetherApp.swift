@@ -28,6 +28,8 @@ struct TetherApp: App {
         ShareInbox.shared.start()
         // Look for a newer release once a day
         UpdateController.shared.start()
+        // Serve the phone's storage to Finder
+        PhoneFilesController.shared.start()
     }
 
     var body: some Scene {

@@ -206,6 +206,10 @@ public final class TetherAppModel {
 
         updateDevicePluginStates()
         ShareInbox.shared.publishConnectedDevices(connectedDevices)
+        PhoneFilesController.shared.update(
+            paired: trustStore.pairedDevices.mapValues(\.deviceName),
+            connected: connectedIds
+        )
 
         if selectedDeviceId == nil || !allDevices.contains(where: { $0.id == selectedDeviceId }) {
             selectedDeviceId = connectedDevices.first?.id ?? offlineDevices.first?.id ?? availableDevices.first?.id
@@ -225,6 +229,8 @@ public final class TetherAppModel {
         vm.onSendFiles = { urls in service.sendFiles(urls, to: deviceId) }
         vm.onFindPhone = { service.ringPhone(deviceId) }
         vm.onLockDevice = { service.lockPhone(deviceId) }
+        let canLock = connection.peerDeviceInfo?.incomingCapabilities.contains("kdeconnect.lock.request") ?? false
+        if vm.canLock != canLock { vm.canLock = canLock }
         vm.onUnpair = { service.unpair(deviceId: deviceId) }
         vm.onExecuteCommand = { cmdId in
             service.runCommandPlugin.startCommand(key: cmdId, connection: service.connectedDevices[deviceId])
@@ -291,11 +297,18 @@ public final class TetherAppModel {
             update(dev, \.nowPlayingIsPlaying, nowPlaying?.isPlaying ?? false)
             dev.setAlbumArt(service.mediaControlPlugin.albumArt[id])
 
+            // Same order as TetherService.setPhoneVolume: the media player's
+            // volume on a phone, a sink's on a desktop.
+            let hasPlayer = !(service.mediaControlPlugin.players[id] ?? []).isEmpty
             let sinks = service.remoteVolumePlugin.sinks[id]
-            if let sink = sinks?.first(where: { $0.enabled }) ?? sinks?.first {
+            if hasPlayer, let nowPlaying {
+                update(dev, \.volume, Float(nowPlaying.volume) / 100)
+                update(dev, \.isMuted, false)
+            } else if let sink = sinks?.first(where: { $0.enabled }) ?? sinks?.first {
                 update(dev, \.volume, Float(sink.fraction))
                 update(dev, \.isMuted, sink.muted)
             }
+            update(dev, \.canSetVolume, hasPlayer || !(sinks ?? []).isEmpty)
         }
     }
 

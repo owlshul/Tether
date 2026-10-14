@@ -97,6 +97,8 @@ public struct DeviceInfo: Codable, Sendable, Identifiable {
         // SMS messages and attachments
         "kdeconnect.sms.messages",
         "kdeconnect.sms.attachment_file",
+        // Phone storage, for Finder
+        "kdeconnect.sftp",
         // Remote commands
         "kdeconnect.runcommand.request"
     ]
@@ -125,6 +127,7 @@ public struct DeviceInfo: Codable, Sendable, Identifiable {
         "kdeconnect.mousepad.echo",
         // SMS requests
         "kdeconnect.sms.request",
+        "kdeconnect.sftp.request",
         "kdeconnect.sms.request_conversations",
         "kdeconnect.sms.request_conversation",
         "kdeconnect.sms.request_attachment",
