@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3800AD02308A000000A0B001 /* MediaRemoteAdapter.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 3800AD01308A000000A0B001 /* MediaRemoteAdapter.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		38226D9A307CF7BF00449642 /* TetherShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 38226D8E307CF7BE00449642 /* TetherShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		38F25CBC307F5E5B00B2D78B /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38F25CBB307F5E5B00B2D78B /* UniformTypeIdentifiers.framework */; };
 /* End PBXBuildFile section */
@@ -36,6 +37,15 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		3800AD03308A000000A0B001 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "";
+			dstSubfolder = Frameworks;
+			files = (
+				3800AD02308A000000A0B001 /* MediaRemoteAdapter.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+		};
 		38226D9F307CF7BF00449642 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			dstPath = "";
@@ -48,6 +58,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		3800AD01308A000000A0B001 /* MediaRemoteAdapter.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = MediaRemoteAdapter.framework; sourceTree = "<group>"; };
 		380DA5A6306B8D3000598FE4 /* Tether.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tether.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		380DA5B3306B8D3200598FE4 /* TetherTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TetherTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		380DA5BD306B8D3200598FE4 /* TetherUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TetherUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -115,6 +126,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		3800AD04308A000000A0B001 /* Vendor */ = {
+			isa = PBXGroup;
+			children = (
+				3800AD01308A000000A0B001 /* MediaRemoteAdapter.framework */,
+			);
+			path = Vendor/MediaRemoteAdapter;
+			sourceTree = "<group>";
+		};
 		380DA59D306B8D3000598FE4 = {
 			isa = PBXGroup;
 			children = (
@@ -122,6 +141,7 @@
 				380DA5B6306B8D3200598FE4 /* TetherTests */,
 				380DA5C0306B8D3200598FE4 /* TetherUITests */,
 				38226D8F307CF7BE00449642 /* TetherShare */,
+				3800AD04308A000000A0B001 /* Vendor */,
 				38F25CBA307F5E5B00B2D78B /* Frameworks */,
 				380DA5A7306B8D3000598FE4 /* Products */,
 			);
@@ -157,6 +177,7 @@
 				380DA5A3306B8D3000598FE4 /* Frameworks */,
 				380DA5A4306B8D3000598FE4 /* Resources */,
 				38226D9F307CF7BF00449642 /* Embed Foundation Extensions */,
+				3800AD03308A000000A0B001 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
