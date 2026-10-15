@@ -183,18 +183,50 @@ public final class SharePlugin: ObservableObject, TetherPlugin, @unchecked Senda
             self.transfers.insert(item, at: 0)
         }
 
+        // Announced on the device's current connection, and once more if the
+        // phone never picked it up: when it reconnects mid-send (switching
+        // from Wi-Fi to Tailscale, say), an announcement on the old connection
+        // is lost.
+        var result: Result<Void, Error> = .failure(PayloadError.connectionTimeout)
+        for attempt in 1...2 {
+            let current = TetherService.shared.connection(for: deviceId) ?? connection
+            result = upload(url: url, attributes: attributes, batch: batch, itemId: itemId, size: size, connection: current)
+            guard case .failure(PayloadError.connectionTimeout) = result, attempt == 1 else { break }
+            TetherLog("[SharePlugin] \(deviceName) didn't pick up \(filename); announcing it again")
+        }
+
+        DispatchQueue.main.async {
+            guard let index = self.transfers.firstIndex(where: { $0.id == itemId }) else { return }
+            switch result {
+            case .success:
+                self.transfers[index].status = .completed
+                self.transfers[index].progress = 1.0
+                self.transfers[index].transferredBytes = size
+                TetherLog("[SharePlugin] Finished sending \(filename) successfully.")
+            case .failure(let error):
+                self.transfers[index].status = .failed(error.localizedDescription)
+                TetherLog("[SharePlugin] Failed sending \(filename): \(error)")
+            }
+        }
+    }
+
+    /// Offers one file on a payload port, announces it, and waits until the
+    /// phone has fetched it or gave up.
+    private func upload(url: URL, attributes: [FileAttributeKey: Any], batch: Batch, itemId: UUID, size: Int64,
+                        connection: DeviceConnection) -> Result<Void, Error> {
+        let filename = url.lastPathComponent
         let uploader = PayloadUploader()
         lock.withLock {
             self.activeUploaders[itemId] = uploader
         }
 
         let semaphore = DispatchSemaphore(value: 0)
+        var outcome: Result<Void, Error> = .failure(PayloadError.connectionTimeout)
 
         uploader.start(
             fileURL: url,
             expectedPeerFingerprint: connection.peerCertificateFingerprint,
             onReady: { offer in
-                // Build the announcing packet
                 let creationDate = (attributes[.creationDate] as? Date) ?? Date()
                 let modDate = (attributes[.modificationDate] as? Date) ?? Date()
 
@@ -224,29 +256,16 @@ public final class SharePlugin: ObservableObject, TetherPlugin, @unchecked Senda
                 }
             },
             onComplete: { [weak self] result in
-                guard let self else { return }
-                self.lock.withLock {
-                    _ = self.activeUploaders.removeValue(forKey: itemId)
+                self?.lock.withLock {
+                    _ = self?.activeUploaders.removeValue(forKey: itemId)
                 }
-                DispatchQueue.main.async {
-                    if let index = self.transfers.firstIndex(where: { $0.id == itemId }) {
-                        switch result {
-                        case .success:
-                            self.transfers[index].status = .completed
-                            self.transfers[index].progress = 1.0
-                            self.transfers[index].transferredBytes = size
-                            TetherLog("[SharePlugin] Finished sending \(filename) successfully.")
-                        case .failure(let error):
-                            self.transfers[index].status = .failed(error.localizedDescription)
-                            TetherLog("[SharePlugin] Failed sending \(filename): \(error)")
-                        }
-                    }
-                }
+                outcome = result.map { _ in () }
                 semaphore.signal()
             }
         )
 
         _ = semaphore.wait(timeout: .distantFuture)
+        return outcome
     }
 
     public func cancelTransfer(id: UUID) {
