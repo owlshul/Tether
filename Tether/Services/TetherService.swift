@@ -29,6 +29,7 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
     public let connectivityReportPlugin = ConnectivityReportPlugin()
     public let telephonyPlugin = TelephonyPlugin()
     public let remoteVolumePlugin = RemoteVolumePlugin()
+    public let macVolumePlugin = MacVolumePlugin()
     public let sharePlugin = SharePlugin()
     public let mousepadPlugin = MousepadPlugin()
     public let presenterPlugin = PresenterPlugin()
@@ -65,6 +66,7 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
             connectivityReportPlugin,
             telephonyPlugin,
             remoteVolumePlugin,
+            macVolumePlugin,
             sharePlugin,
             mousepadPlugin,
             presenterPlugin,

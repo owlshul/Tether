@@ -246,7 +246,9 @@ struct TetherTests {
             "kdeconnect.sms.attachment_file",
             "kdeconnect.runcommand.request",
             // Ring this Mac: the same packet type rings in either direction.
-            "kdeconnect.findmyphone.request"
+            "kdeconnect.findmyphone.request",
+            // The phone's volume panel controls this Mac's volume too.
+            "kdeconnect.systemvolume.request"
         ] {
             #expect(incoming.contains(type), "\(type) must be receivable")
         }

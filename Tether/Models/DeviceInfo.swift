@@ -82,6 +82,8 @@ public struct DeviceInfo: Codable, Sendable, Identifiable {
         "kdeconnect.mpris",
         // Peer volume reporting.
         "kdeconnect.systemvolume",
+        // The phone's volume panel controlling this Mac
+        "kdeconnect.systemvolume.request",
         // Lock state reports.
         "kdeconnect.lock",
         // Cellular signal reports.
@@ -123,6 +125,8 @@ public struct DeviceInfo: Codable, Sendable, Identifiable {
         "kdeconnect.findmyphone.request",
         // Peer volume queries and changes.
         "kdeconnect.systemvolume.request",
+        // This Mac's volume, for the phone's volume panel
+        "kdeconnect.systemvolume",
         // Lock and lock-state requests.
         "kdeconnect.lock.request",
         // File, text, and URL sharing
