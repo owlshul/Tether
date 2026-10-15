@@ -73,6 +73,10 @@ final class PhoneFilesController {
 
     private var paired: [String: String] = [:]
     private var connected = Set<String>()
+    /// When each phone last disconnected. Its drive stays mounted this long, so
+    /// a phone switching networks (Wi-Fi to Tailscale, say) doesn't lose it.
+    private var disconnectedAt: [String: Date] = [:]
+    private static let reconnectGrace: TimeInterval = 30
     private var routers: [String: PhoneFilesRouter] = [:]
     private var mounts: [String: PhoneMount] = [:]
     private var started = false
@@ -189,6 +193,8 @@ final class PhoneFilesController {
         }
         // A phone that disconnected gets its drive back automatically next time.
         ejectedDevices.subtract(connected.subtracting(newConnected))
+        for deviceId in connected.subtracting(newConnected) { disconnectedAt[deviceId] = .now }
+        for deviceId in newConnected { disconnectedAt[deviceId] = nil }
         paired = newPaired
         connected = newConnected
         Task { await syncMounts() }
@@ -196,7 +202,17 @@ final class PhoneFilesController {
 
     /// Mounts connected, paired phones and unmounts the rest.
     private func syncMounts() async {
-        let wanted = isEnabled ? connected.filter { paired[$0] != nil && !ejectedDevices.contains($0) } : []
+        // A drive that's already mounted outlives a short disconnect.
+        let lingering = Set(disconnectedAt.compactMap { deviceId, date in
+            mounts[deviceId] != nil && Date.now.timeIntervalSince(date) < Self.reconnectGrace ? deviceId : nil
+        })
+        let wanted = isEnabled ? connected.union(lingering).filter { paired[$0] != nil && !ejectedDevices.contains($0) } : []
+        if !lingering.isEmpty {
+            Task {
+                try? await Task.sleep(for: .seconds(Self.reconnectGrace))
+                await syncMounts()
+            }
+        }
         for deviceId in Array(mounts.keys) where !wanted.contains(deviceId) || mounts[deviceId]?.name != Self.mountName(paired[deviceId]) {
             await unmount(deviceId)
         }
