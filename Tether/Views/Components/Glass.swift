@@ -28,6 +28,16 @@ extension View {
         }
     }
 
+    /// A small text button: glass on macOS 26, bordered before.
+    @ViewBuilder
+    func glassButton() -> some View {
+        if #available(macOS 26.0, *) {
+            self.buttonStyle(.glass)
+        } else {
+            self.buttonStyle(.bordered)
+        }
+    }
+
     /// Glass over imagery (the phone card), where the material should stay clear.
     @ViewBuilder
     func clearGlass(in shape: some Shape) -> some View {

@@ -8,6 +8,14 @@ import SwiftUI
 struct NotificationsPane: View {
     let device: DeviceViewModel
 
+    /// Notifications grouped by app, the app with the newest one first.
+    private var groups: [(app: String, items: [PhoneNotification])] {
+        let byApp = Dictionary(grouping: device.notifications, by: \.appName)
+        return byApp
+            .map { (app: $0.key, items: $0.value.sorted { $0.date > $1.date }) }
+            .sorted { ($0.items.first?.date ?? .distantPast) > ($1.items.first?.date ?? .distantPast) }
+    }
+
     var body: some View {
         if device.notifications.isEmpty {
             ContentUnavailableView(
@@ -16,30 +24,54 @@ struct NotificationsPane: View {
                 description: Text("Notifications on \(device.name) show up here and in Notification Center. Turn on notification sync in KDE Connect on your phone if they don't.")
             )
         } else {
-            Form {
-                Section {
-                    ForEach(device.notifications) { notification in
-                        NotificationRow(notification: notification, device: device)
-                    }
-                } header: {
-                    HStack {
-                        Text("On \(device.name)")
-                        Spacer()
-                        if device.notifications.contains(where: \.isDismissable) {
-                            Button("Clear All") {
-                                for notification in device.notifications where notification.isDismissable {
-                                    device.dismiss(notification)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    header
+                    ForEach(groups, id: \.app) { group in
+                        VStack(alignment: .leading, spacing: 10) {
+                            PanelHeader(group.app) {
+                                Text(group.items.count, format: .number)
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                            }
+                            VStack(spacing: 0) {
+                                ForEach(Array(group.items.enumerated()), id: \.element.id) { index, notification in
+                                    if index > 0 { Divider().padding(.leading, 16) }
+                                    NotificationRow(notification: notification, device: device)
                                 }
                             }
-                            .buttonStyle(.link)
-                            .font(.callout)
+                            .glassPanel()
                         }
                     }
                 }
+                .frame(maxWidth: 600, alignment: .leading)
+                .padding(.horizontal, 32)
+                .padding(.vertical, 28)
+                .frame(maxWidth: .infinity)
             }
-            .formStyle(.grouped)
             .animation(.default, value: device.notifications)
         }
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Notifications")
+                    .font(.title2.weight(.bold))
+                Text("\(device.notifications.count) on \(device.name)")
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if device.notifications.contains(where: \.isDismissable) {
+                Button("Clear All") {
+                    for notification in device.notifications where notification.isDismissable {
+                        device.dismiss(notification)
+                    }
+                }
+                .glassButton()
+            }
+        }
+        .padding(.horizontal, 4)
     }
 }
 
@@ -54,20 +86,16 @@ private struct NotificationRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
-                Text(notification.appName)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                Text(notification.title.isEmpty ? notification.appName : notification.title)
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
                 Spacer()
                 Text(notification.date, format: .relative(presentation: .named))
-                    .font(.callout)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
-
-            if !notification.title.isEmpty {
-                Text(notification.title)
-                    .fontWeight(.semibold)
-            }
             if !notification.text.isEmpty {
+                // The message is the content, so it isn't greyed out.
                 Text(notification.text)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
@@ -85,7 +113,7 @@ private struct NotificationRow: View {
                         .keyboardShortcut(.defaultAction)
                         .disabled(reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                .padding(.top, 4)
+                .padding(.top, 6)
                 .onAppear { isReplyFocused = true }
             } else if notification.code != nil || notification.replyId != nil || notification.isDismissable {
                 HStack(spacing: 16) {
@@ -100,10 +128,14 @@ private struct NotificationRow: View {
                     }
                 }
                 .buttonStyle(.link)
-                .padding(.top, 2)
+                .font(.callout)
+                .padding(.top, 4)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(.rect)
         .contextMenu {
             if let code = notification.code {
                 Button("Copy Code \(code)") { NotificationPlugin.copyToPasteboard(code) }
