@@ -104,7 +104,20 @@ public final class NotificationPlugin: NSObject, ObservableObject, TetherPlugin,
             options: []
         )
 
-        UNUserNotificationCenter.current().setNotificationCategories([category, codeCategory, pairCategory])
+        let muteAction = UNNotificationAction(
+            identifier: TelephonyPlugin.muteAction,
+            title: "Mute Ringer",
+            options: []
+        )
+
+        let callCategory = UNNotificationCategory(
+            identifier: TelephonyPlugin.callCategory,
+            actions: [muteAction],
+            intentIdentifiers: [],
+            options: []
+        )
+
+        UNUserNotificationCenter.current().setNotificationCategories([category, codeCategory, pairCategory, callCategory])
     }
 
     public func onConnected(connection: DeviceConnection) {
@@ -291,6 +304,14 @@ public final class NotificationPlugin: NSObject, ObservableObject, TetherPlugin,
         }
 
         let userInfo = response.notification.request.content.userInfo
+        if response.actionIdentifier == TelephonyPlugin.muteAction {
+            if let deviceId = userInfo["deviceId"] as? String {
+                TelephonyPlugin.muteRinger(deviceId: deviceId)
+            }
+            completionHandler()
+            return
+        }
+
         // Copying needs no connection: the code is in the notification.
         if response.actionIdentifier == "TETHER_COPY_CODE_ACTION" {
             if let code = userInfo["code"] as? String, !code.isEmpty {

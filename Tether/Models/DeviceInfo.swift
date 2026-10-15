@@ -139,6 +139,8 @@ public struct DeviceInfo: Codable, Sendable, Identifiable {
         // Contacts
         "kdeconnect.contacts.request_all_uids_timestamps",
         "kdeconnect.contacts.request_vcards_by_uid",
+        // Silencing the ringer from an incoming-call notification
+        "kdeconnect.telephony.request_mute",
         // Remote commands
         "kdeconnect.runcommand",
         "kdeconnect.runcommand.output"
