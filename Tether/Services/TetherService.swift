@@ -211,6 +211,7 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
             }
 
             self.connectedDevices[id] = connection
+            AwayLock.shared.phoneConnected(id)
 
             // Only a verified, paired device gets its plugins started.
             self.activatePlugins(for: connection)
@@ -233,6 +234,9 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
                     self.connectedDevices.removeValue(forKey: id)
                     self.deactivatePlugins(for: connection)
                     TetherLog("[TetherService] Disconnected from \(connection.peerDeviceInfo?.deviceName ?? id)")
+                    if let info = connection.peerDeviceInfo, info.deviceType == .phone, connection.pairState == .paired {
+                        AwayLock.shared.phoneDisconnected(id, name: info.deviceName)
+                    }
                 }
             }
             self.pendingConnections.removeValue(forKey: "in_\(connection.host):\(connection.port)")

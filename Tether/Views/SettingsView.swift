@@ -227,6 +227,7 @@ private struct GeneralSettings: View {
     @AppStorage(MotionPreference.key) private var reduceMotion = false
     @AppStorage(OneTimeCode.autoCopyKey) private var copyCodes = false
     @AppStorage(CallMediaPauser.settingKey) private var pauseMediaDuringCalls = true
+    @AppStorage(AwayLock.settingKey) private var lockWhenPhoneLeaves = false
 
     var body: some View {
         Form {
@@ -257,6 +258,10 @@ private struct GeneralSettings: View {
                 Toggle(isOn: $pauseMediaDuringCalls) {
                     Text("Pause media during calls")
                     Text("Pauses what's playing on this Mac while your phone rings or you're on a call, and resumes it afterwards.")
+                }
+                Toggle(isOn: $lockWhenPhoneLeaves) {
+                    Text("Lock this Mac when your phone leaves")
+                    Text("Locks the screen when your phone has been disconnected for half a minute, such as when you walk away with it.")
                 }
             }
 
