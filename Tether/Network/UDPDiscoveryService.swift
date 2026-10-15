@@ -26,10 +26,17 @@ public final class UDPDiscoveryService: @unchecked Sendable {
     /// The user's phones on their Tailscale network, refreshed by TetherService.
     private var tailscaleTargetIPs = Set<String>()
     private var lastDirectResponse: [String: Date] = [:]
+    /// Which device each address belongs to. A phone has several (Wi-Fi,
+    /// Tailscale, an old network), and announcing to any of them while it's
+    /// connected makes KDE Connect open a new connection and drop the current
+    /// one. Kept across launches: Tailscale addresses don't change.
+    private var hostOwners: [String: String] = [:]
+    private static let hostOwnersKey = "tether_host_owners"
     private var lastLoggedBroadcastTargets = Set<String>()
     private var hasLoggedOutboundPacket = false
 
     public init() {
+        hostOwners = UserDefaults.standard.dictionary(forKey: Self.hostOwnersKey) as? [String: String] ?? [:]
         if let lastIP = UserDefaults.standard.string(forKey: "tether_last_peer_ip") {
             knownTargetIPs.insert(lastIP)
         }
@@ -53,11 +60,33 @@ public final class UDPDiscoveryService: @unchecked Sendable {
         }
     }
 
+    /// Records that `host` is one of `deviceId`'s addresses.
+    public func noteHost(_ host: String, belongsTo deviceId: String) {
+        queue.async {
+            guard self.hostOwners[host] != deviceId else { return }
+            self.hostOwners[host] = deviceId
+            // Bounded, for networks that hand out a new address every visit.
+            if self.hostOwners.count > 64 {
+                self.hostOwners = Dictionary(uniqueKeysWithValues: self.hostOwners.suffix(48))
+            }
+            UserDefaults.standard.set(self.hostOwners, forKey: Self.hostOwnersKey)
+        }
+    }
+
+    /// Whether `host` is an address of a device that's connected right now,
+    /// by any of its addresses.
+    private func belongsToConnectedDevice(_ host: String, connectedHosts: Set<String>) -> Bool {
+        if connectedHosts.contains(host) { return true }
+        guard let owner = hostOwners[host] else { return false }
+        return delegate?.isDeviceConnected(deviceId: owner) ?? false
+    }
+
     /// Replaces the Tailscale targets, announcing ourselves to any new ones right
     /// away so a phone that just came online doesn't wait for the next cycle.
     public func setTailscaleTargets(_ ips: Set<String>) {
         queue.async {
-            let added = ips.subtracting(self.tailscaleTargetIPs).subtracting(self.delegate?.connectedHosts() ?? [])
+            let connected = self.delegate?.connectedHosts() ?? []
+            let added = ips.subtracting(self.tailscaleTargetIPs).filter { !self.belongsToConnectedDevice($0, connectedHosts: connected) }
             self.tailscaleTargetIPs = ips
             guard !added.isEmpty,
                   let data = try? DeviceIdentity.shared.toDeviceInfo().toUdpDiscoveryPacket().serialize() else { return }
@@ -167,6 +196,7 @@ public final class UDPDiscoveryService: @unchecked Sendable {
         TetherLog("[UDPDiscovery] Received UDP discovery from: \(deviceInfo.deviceName) (\(deviceInfo.deviceId)) at \(senderIP):\(tcpPort)")
 
         knownTargetIPs.insert(senderIP)
+        noteHost(senderIP, belongsTo: deviceInfo.deviceId)
         UserDefaults.standard.set(senderIP, forKey: "tether_last_peer_ip")
 
         let isConnected = delegate?.isDeviceConnected(deviceId: deviceInfo.deviceId) ?? false
@@ -361,7 +391,7 @@ public final class UDPDiscoveryService: @unchecked Sendable {
         }
 
         if routine {
-            targets.removeAll { connected.contains($0) }
+            targets.removeAll { belongsToConnectedDevice($0, connectedHosts: connected) }
         }
         guard !targets.isEmpty || sweepSubnet else { return }
 

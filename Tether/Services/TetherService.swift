@@ -47,6 +47,8 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
     nonisolated(unsafe) private var activeDeviceIds = Set<String>()
     /// Address of each connected device, so discovery doesn't re-announce to it.
     nonisolated(unsafe) private var activeHosts: [String: String] = [:]
+    /// The live connection to each device, readable from any thread.
+    nonisolated(unsafe) private var activeConnections: [String: DeviceConnection] = [:]
     /// Connections whose plugins have been started, so each starts exactly once.
     private var activatedConnections = Set<ObjectIdentifier>()
 
@@ -105,6 +107,7 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
         connectionLock.withLock {
             activeDeviceIds.removeAll()
             activeHosts.removeAll()
+            activeConnections.removeAll()
         }
         TetherLog("[TetherService] Service stopped.")
     }
@@ -114,6 +117,13 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
         connectionLock.withLock {
             activeDeviceIds.contains(deviceId)
         }
+    }
+
+    /// The device's current connection. A phone that reconnects (switching
+    /// from Wi-Fi to Tailscale, say) gets a new one, so long-running work such
+    /// as a multi-file send looks it up again instead of keeping the first.
+    nonisolated public func connection(for deviceId: String) -> DeviceConnection? {
+        connectionLock.withLock { activeConnections[deviceId] }
     }
 
     nonisolated public func connectedHosts() -> Set<String> {
@@ -180,7 +190,9 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
             self.connectionLock.withLock {
                 self.activeDeviceIds.insert(id)
                 self.activeHosts[id] = connection.host
+                self.activeConnections[id] = connection
             }
+            self.udpDiscovery.noteHost(connection.host, belongsTo: id)
 
             if let old = self.connectedDevices[id], old !== connection {
                 TetherLog("[TetherService] Seamlessly replacing previous connection to \(id) with new active connection.")
@@ -212,6 +224,7 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
                     self.connectionLock.withLock {
                         self.activeDeviceIds.remove(id)
                         self.activeHosts[id] = nil
+                        self.activeConnections[id] = nil
                     }
                     self.connectedDevices.removeValue(forKey: id)
                     self.deactivatePlugins(for: connection)
