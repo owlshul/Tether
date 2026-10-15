@@ -83,7 +83,11 @@ public final class SMSPlugin: ObservableObject, TetherPlugin, @unchecked Sendabl
         TetherLog("[SMSPlugin] Requested all SMS conversations")
     }
 
-    public func requestConversation(threadId: Int64, rangeStartTimestamp: Int64 = 0, numberToRequest: Int = 50, connection: DeviceConnection) {
+    /// Asks for a thread's messages. A negative `rangeStartTimestamp` means
+    /// the newest ones; otherwise the phone returns messages older than it
+    /// (milliseconds since 1970). 0 asked for messages from before 1970, which
+    /// is why only each thread's latest message ever showed.
+    public func requestConversation(threadId: Int64, rangeStartTimestamp: Int64 = -1, numberToRequest: Int = 50, connection: DeviceConnection) {
         let packet = NetworkPacket(
             type: Self.requestConversationType,
             body: [
@@ -94,6 +98,22 @@ public final class SMSPlugin: ObservableObject, TetherPlugin, @unchecked Sendabl
         )
         connection.send(packet: packet)
         TetherLog("[SMSPlugin] Requested conversation \(threadId)")
+    }
+
+    /// The page before the oldest message loaded, growing like desktop KDE
+    /// Connect's: as many as are already loaded, at least 50.
+    public func requestEarlierMessages(threadId: Int64, connection: DeviceConnection) {
+        let loaded = DispatchQueue.main.sync { conversations[threadId]?.messages ?? [] }
+        guard let oldest = loaded.first?.date else {
+            requestConversation(threadId: threadId, connection: connection)
+            return
+        }
+        requestConversation(
+            threadId: threadId,
+            rangeStartTimestamp: Int64(oldest.timeIntervalSince1970 * 1000),
+            numberToRequest: max(50, loaded.count),
+            connection: connection
+        )
     }
 
     public func requestAttachment(partId: Int64, uniqueIdentifier: String, connection: DeviceConnection) {

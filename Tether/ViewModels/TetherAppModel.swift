@@ -263,6 +263,12 @@ public final class TetherAppModel {
             guard let conn = service.connectedDevices[deviceId] else { return }
             service.smsPlugin.requestConversation(threadId: threadId, connection: conn)
         }
+        vm.onLoadEarlierMessages = { threadId in
+            guard let conn = service.connectedDevices[deviceId] else { return }
+            DispatchQueue.global(qos: .userInitiated).async {
+                service.smsPlugin.requestEarlierMessages(threadId: threadId, connection: conn)
+            }
+        }
         vm.onSetVolume = { val in service.setPhoneVolume(Int(val * 100), deviceId: deviceId) }
         vm.onMediaAction = { action in service.mediaAction(action, deviceId: deviceId) }
         vm.onReplyToNotification = { notification, text in

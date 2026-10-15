@@ -72,6 +72,7 @@ public final class DeviceViewModel: Identifiable, Hashable {
     public var onSendSMS: (([String], String, Int64?) -> Void)?
     public var onRefreshMessages: (() -> Void)?
     public var onOpenThread: ((Int64) -> Void)?
+    public var onLoadEarlierMessages: ((Int64) -> Void)?
     public var onSetVolume: ((Float) -> Void)?
     public var onMediaAction: ((String) -> Void)?
     public var onReplyToNotification: ((PhoneNotification, String) -> Void)?
@@ -191,6 +192,7 @@ public final class DeviceViewModel: Identifiable, Hashable {
 
     public func refreshMessages() { onRefreshMessages?() }
     public func openThread(_ threadId: Int64) { onOpenThread?(threadId) }
+    public func loadEarlierMessages(_ threadId: Int64) { onLoadEarlierMessages?(threadId) }
     public func setVolume(_ val: Float) { onSetVolume?(val) }
     public func playPauseMedia() { onMediaAction?("PlayPause") }
     public func nextMedia() { onMediaAction?("Next") }
