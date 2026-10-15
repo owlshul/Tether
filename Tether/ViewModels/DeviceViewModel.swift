@@ -226,7 +226,7 @@ extension DeviceViewModel {
             smsThreads: [alex, mom, sam],
             commands: RemoteCommand.defaultCommands,
             notifications: [
-                PhoneNotification(id: "n0", deviceId: "mock_phone", appName: "Messages", title: "AX-HDFCBK", text: "OTP 739104 for login to NetBanking. Never share OTP.", date: now.addingTimeInterval(-30), replyId: nil, isDismissable: true, code: "739104"),
+                PhoneNotification(id: "n0", deviceId: "mock_phone", appName: "Messages", title: "Northwind", text: "739104 is your Northwind sign-in code. It expires in 10 minutes.", date: now.addingTimeInterval(-30), replyId: nil, isDismissable: true, code: "739104"),
                 PhoneNotification(id: "n1", deviceId: "mock_phone", appName: "WhatsApp", title: "Alex Smith", text: "Are we meeting at 4 PM today?", date: now.addingTimeInterval(-120), replyId: "r1", isDismissable: true),
                 PhoneNotification(id: "n2", deviceId: "mock_phone", appName: "Gmail", title: "Your order has shipped", text: "Arriving Thursday. Track your package for live updates.", date: now.addingTimeInterval(-1800), replyId: nil, isDismissable: true)
             ]
