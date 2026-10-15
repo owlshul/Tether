@@ -24,54 +24,31 @@ struct NotificationsPane: View {
                 description: Text("Notifications on \(device.name) show up here and in Notification Center. Turn on notification sync in KDE Connect on your phone if they don't.")
             )
         } else {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    header
-                    ForEach(groups, id: \.app) { group in
-                        VStack(alignment: .leading, spacing: 10) {
-                            PanelHeader(group.app) {
-                                Text(group.items.count, format: .number)
-                                    .font(.callout)
-                                    .foregroundStyle(.secondary)
-                            }
-                            VStack(spacing: 0) {
-                                ForEach(Array(group.items.enumerated()), id: \.element.id) { index, notification in
-                                    if index > 0 { Divider().padding(.leading, 16) }
-                                    NotificationRow(notification: notification, device: device)
-                                }
-                            }
-                            .glassPanel()
+            GlassPage("Notifications", subtitle: "\(device.notifications.count) on \(device.name)") {
+                if device.notifications.contains(where: \.isDismissable) {
+                    Button("Clear All") {
+                        for notification in device.notifications where notification.isDismissable {
+                            device.dismiss(notification)
+                        }
+                    }
+                    .glassButton()
+                }
+            } content: {
+                ForEach(groups, id: \.app) { group in
+                    GlassSection(group.app) {
+                        Text(group.items.count, format: .number)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    } content: {
+                        ForEach(Array(group.items.enumerated()), id: \.element.id) { index, notification in
+                            if index > 0 { Divider().padding(.leading, 16) }
+                            NotificationRow(notification: notification, device: device)
                         }
                     }
                 }
-                .frame(maxWidth: 600, alignment: .leading)
-                .padding(.horizontal, 32)
-                .padding(.vertical, 28)
-                .frame(maxWidth: .infinity)
             }
             .animation(.default, value: device.notifications)
         }
-    }
-
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Notifications")
-                    .font(.title2.weight(.bold))
-                Text("\(device.notifications.count) on \(device.name)")
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            if device.notifications.contains(where: \.isDismissable) {
-                Button("Clear All") {
-                    for notification in device.notifications where notification.isDismissable {
-                        device.dismiss(notification)
-                    }
-                }
-                .glassButton()
-            }
-        }
-        .padding(.horizontal, 4)
     }
 }
 

@@ -28,6 +28,17 @@ extension View {
         }
     }
 
+    /// A text field's capsule: glass on macOS 26, a soft fill before.
+    @ViewBuilder
+    func glassCapsule() -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(.regular, in: .capsule)
+        } else {
+            self
+                .background(.quaternary.opacity(0.7), in: .capsule)
+        }
+    }
+
     /// A small text button: glass on macOS 26, bordered before.
     @ViewBuilder
     func glassButton() -> some View {
@@ -140,6 +151,90 @@ struct PanelHeader<Trailing: View>: View {
             trailing
         }
         .padding(.horizontal, 4)
+    }
+}
+
+// MARK: - Pages
+
+/// A device section laid out like the Overview: a scrolling column with a
+/// title, then glass sections.
+struct GlassPage<Trailing: View, Content: View>: View {
+    let title: String
+    let subtitle: String
+    @ViewBuilder var trailing: Trailing
+    @ViewBuilder var content: Content
+
+    init(_ title: String, subtitle: String,
+         @ViewBuilder trailing: () -> Trailing = { EmptyView() },
+         @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.subtitle = subtitle
+        self.trailing = trailing()
+        self.content = content()
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(.title2.weight(.bold))
+                        Text(subtitle)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    trailing
+                }
+                .padding(.horizontal, 4)
+                content
+            }
+            .frame(maxWidth: 600, alignment: .leading)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 28)
+            .frame(maxWidth: .infinity)
+        }
+    }
+}
+
+/// A titled glass panel, with an optional note under it.
+struct GlassSection<Trailing: View, Content: View>: View {
+    let title: String
+    var footer: String?
+    @ViewBuilder var trailing: Trailing
+    @ViewBuilder var content: Content
+
+    init(_ title: String, footer: String? = nil,
+         @ViewBuilder trailing: () -> Trailing = { EmptyView() },
+         @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.footer = footer
+        self.trailing = trailing()
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PanelHeader(title) { trailing }
+            VStack(spacing: 0) { content }
+                .glassPanel()
+            if let footer {
+                Text(footer)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 4)
+            }
+        }
+    }
+}
+
+extension View {
+    /// Padding for a row inside a glass panel.
+    func glassRow() -> some View {
+        padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
