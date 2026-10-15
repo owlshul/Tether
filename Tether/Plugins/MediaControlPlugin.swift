@@ -55,6 +55,9 @@ public final class MediaControlPlugin: ObservableObject, TetherPlugin, @unchecke
     /// Players advertised by the peer.
     @Published public private(set) var players: [String: [String]] = [:]
 
+    /// The art each device's current track points to, as the phone names it.
+    private var albumArtURLs: [String: String] = [:]
+
     public init() {}
 
     public func onConnected(connection: DeviceConnection) {
@@ -65,6 +68,7 @@ public final class MediaControlPlugin: ObservableObject, TetherPlugin, @unchecke
         guard let deviceId = connection.peerDeviceInfo?.deviceId else { return }
         nowPlaying.removeValue(forKey: deviceId)
         albumArt.removeValue(forKey: deviceId)
+        albumArtURLs.removeValue(forKey: deviceId)
         players.removeValue(forKey: deviceId)
     }
 
@@ -97,9 +101,19 @@ public final class MediaControlPlugin: ObservableObject, TetherPlugin, @unchecke
 
         nowPlaying[deviceId] = state
 
-        // Metadata-only packets announce art separately; the bytes arrive later.
-        if packet.bool(for: "transferringAlbumArt") {
-            TetherLog("[MediaControlPlugin] Album art payload announced by \(deviceId)")
+        // The phone names the track's art by URL and sends the image only when
+        // asked for that URL, as a payload on a later packet.
+        if !packet.bool(for: "transferringAlbumArt"), let url = packet.string(for: "albumArtUrl"),
+           url != albumArtURLs[deviceId] {
+            albumArtURLs[deviceId] = url
+            if url.isEmpty {
+                albumArt.removeValue(forKey: deviceId)
+            } else {
+                connection.send(packet: NetworkPacket(
+                    type: "kdeconnect.mpris.request",
+                    body: ["player": state.player, "albumArtUrl": url]
+                ))
+            }
         }
     }
 
@@ -107,6 +121,8 @@ public final class MediaControlPlugin: ObservableObject, TetherPlugin, @unchecke
         guard packet.type == "kdeconnect.mpris",
               let deviceId = connection.peerDeviceInfo?.deviceId,
               packet.bool(for: "transferringAlbumArt"),
+              // Art for a track that's already been replaced is stale.
+              packet.string(for: "albumArtUrl") == albumArtURLs[deviceId],
               let data = try? Data(contentsOf: fileURL) else { return }
 
         albumArt[deviceId] = data
