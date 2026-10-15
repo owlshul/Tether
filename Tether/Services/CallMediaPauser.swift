@@ -7,7 +7,6 @@
 //  media during calls". It only resumes what it paused itself.
 //
 
-import CoreAudio
 import Foundation
 
 @MainActor
@@ -29,7 +28,7 @@ final class CallMediaPauser {
     func callStarted(_ key: String) {
         activeCalls.insert(key)
         resumeTask?.cancel()
-        guard isEnabled, !pausedForCall, Self.isAudioPlaying() else { return }
+        guard isEnabled, !pausedForCall, SystemAudio.isPlaying() else { return }
         MediaRemote.send(.pause)
         pausedForCall = true
         TetherLog("[Calls] Paused media for a call")
@@ -48,24 +47,6 @@ final class CallMediaPauser {
             MediaRemote.send(.play)
             TetherLog("[Calls] Resumed media after the call")
         }
-    }
-
-    /// Whether the Mac's sound output is in use, by any app.
-    private static func isAudioPlaying() -> Bool {
-        var device = AudioObjectID(kAudioObjectUnknown)
-        var size = UInt32(MemoryLayout<AudioObjectID>.size)
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &device) == noErr else {
-            return false
-        }
-        var running = UInt32(0)
-        size = UInt32(MemoryLayout<UInt32>.size)
-        address.mSelector = kAudioDevicePropertyDeviceIsRunningSomewhere
-        return AudioObjectGetPropertyData(device, &address, 0, nil, &size, &running) == noErr && running != 0
     }
 }
 
