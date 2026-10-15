@@ -53,6 +53,14 @@ final class PhoneFilesController {
         case turnedOff, notConnected, mounting, mounted, ejected, failed(String)
     }
 
+    #if DEBUG
+    /// Demo data: shows a phone's drive as mounted, without mounting anything.
+    func showDemoDrive(for deviceId: String) {
+        connected.insert(deviceId)
+        mountedDevices.insert(deviceId)
+    }
+    #endif
+
     func driveState(for deviceId: String) -> DriveState {
         if !isEnabled { return .turnedOff }
         if mountedDevices.contains(deviceId) { return .mounted }

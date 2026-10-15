@@ -73,6 +73,13 @@ final class MacRinger {
         panel = nil
     }
 
+    #if DEBUG
+    /// Demo data: the panel alone, with no sound or volume change.
+    func showDemoPanel(deviceName: String) {
+        showPanel(deviceName: deviceName)
+    }
+    #endif
+
     // MARK: - Panel
 
     private func showPanel(deviceName: String) {
@@ -163,7 +170,7 @@ final class MacRinger {
     }
 }
 
-private struct RingingView: View {
+struct RingingView: View {
     let deviceName: String
     let stop: () -> Void
     @State private var pulse = false

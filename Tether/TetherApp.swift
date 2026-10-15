@@ -13,8 +13,15 @@ struct TetherApp: App {
         #if DEBUG
         // `-TetherDemoData` fills the UI with sample devices for screenshots and
         // design work, without touching the network.
+        // `-TetherDemoRinging` also shows the Ring panel, without sound.
         if ProcessInfo.processInfo.arguments.contains("-TetherDemoData") {
             _appModel = State(initialValue: .mock())
+            PhoneFilesController.shared.showDemoDrive(for: "mock_phone")
+            if ProcessInfo.processInfo.arguments.contains("-TetherDemoRinging") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    MacRinger.shared.showDemoPanel(deviceName: "Pixel 9 Pro")
+                }
+            }
             return
         }
         #endif
@@ -38,6 +45,17 @@ struct TetherApp: App {
         PhoneFilesController.shared.start()
     }
 
+    /// Demo data opens the main window at `-TetherDemoSection <section>`
+    /// (overview when not given).
+    private static var demoSection: DeviceSection? {
+        #if DEBUG
+        guard ProcessInfo.processInfo.arguments.contains("-TetherDemoData") else { return nil }
+        return UserDefaults.standard.string(forKey: "TetherDemoSection").flatMap(DeviceSection.init) ?? .overview
+        #else
+        return nil
+        #endif
+    }
+
     var body: some Scene {
         MenuBarExtra("Tether", image: appModel.statusMenuBarImageName) {
             MenuBarView(appModel: appModel)
@@ -46,10 +64,11 @@ struct TetherApp: App {
         .menuBarExtraStyle(.window)
 
         Window("Tether", id: "main") {
-            MainWindowView(appModel: appModel)
+            MainWindowView(appModel: appModel, initialSection: Self.demoSection ?? .overview)
                 .tetherMotionPreference()
         }
         .defaultSize(width: 1040, height: 700)
+        .defaultLaunchBehavior(Self.demoSection == nil ? .automatic : .presented)
         .windowToolbarStyle(.unified)
         .commands {
             TetherCommands(appModel: appModel)
