@@ -80,6 +80,19 @@ struct BatteryLabel: View {
 struct InitialsAvatar: View {
     let name: String
     var size: CGFloat = 32
+    /// The contact's photo, shown instead of initials when there is one.
+    var photo: Data? = nil
+
+    /// Decoded photos, so a long list doesn't decode them on every redraw.
+    private static let images = NSCache<NSData, NSImage>()
+
+    private var image: NSImage? {
+        guard let photo else { return nil }
+        if let cached = Self.images.object(forKey: photo as NSData) { return cached }
+        guard let image = NSImage(data: photo) else { return nil }
+        Self.images.setObject(image, forKey: photo as NSData)
+        return image
+    }
 
     private var initials: String {
         let letters = name
@@ -98,7 +111,13 @@ struct InitialsAvatar: View {
             .fill(Color.gray.gradient)
             .frame(width: size, height: size)
             .overlay {
-                if isPhoneNumber {
+                if let image {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: size, height: size)
+                        .clipShape(Circle())
+                } else if isPhoneNumber {
                     Image(systemName: "person.fill")
                         .resizable()
                         .scaledToFit()

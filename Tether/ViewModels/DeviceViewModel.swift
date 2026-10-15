@@ -42,6 +42,8 @@ public final class DeviceViewModel: Identifiable, Hashable {
 
     public var transfers: [TransferItem]
     public var smsThreads: [SMSConversation]
+    /// The phone's contacts, for names and photos instead of numbers.
+    var contacts = ContactBook()
     public var commands: [RemoteCommand]
     public var notifications: [PhoneNotification]
 
@@ -175,6 +177,18 @@ public final class DeviceViewModel: Identifiable, Hashable {
     public func sendSMS(to addresses: [String], message: String, threadId: Int64?) {
         onSendSMS?(addresses, message, threadId)
     }
+    /// The thread's people by name where the phone's contacts know them.
+    func title(for thread: SMSConversation) -> String {
+        guard !thread.addresses.isEmpty else { return thread.title }
+        return thread.addresses.map { contacts.contact(for: $0)?.name ?? $0 }.joined(separator: ", ")
+    }
+
+    /// The contact photo for a one-to-one thread.
+    func photo(for thread: SMSConversation) -> Data? {
+        guard thread.addresses.count == 1, let address = thread.addresses.first else { return nil }
+        return contacts.contact(for: address)?.photo
+    }
+
     public func refreshMessages() { onRefreshMessages?() }
     public func openThread(_ threadId: Int64) { onOpenThread?(threadId) }
     public func setVolume(_ val: Float) { onSetVolume?(val) }

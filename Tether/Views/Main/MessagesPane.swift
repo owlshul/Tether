@@ -14,7 +14,8 @@ struct MessagesPane: View {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return device.smsThreads }
         return device.smsThreads.filter {
-            $0.title.localizedCaseInsensitiveContains(query) || $0.snippet.localizedCaseInsensitiveContains(query)
+            device.title(for: $0).localizedCaseInsensitiveContains(query) || $0.title.localizedCaseInsensitiveContains(query)
+                || $0.snippet.localizedCaseInsensitiveContains(query)
         }
     }
 
@@ -77,7 +78,7 @@ struct MessagesPane: View {
             .padding(10)
 
             List(filteredThreads, selection: $selectedThreadId) { thread in
-                ThreadRow(thread: thread)
+                ThreadRow(thread: thread, device: device)
                     .tag(thread.id)
             }
             .listStyle(.inset)
@@ -88,14 +89,15 @@ struct MessagesPane: View {
 
 private struct ThreadRow: View {
     let thread: SMSConversation
+    let device: DeviceViewModel
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            InitialsAvatar(name: thread.title, size: 36)
+            InitialsAvatar(name: device.title(for: thread), size: 36, photo: device.photo(for: thread))
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(thread.title)
+                    Text(device.title(for: thread))
                         .fontWeight(thread.unreadCount > 0 ? .semibold : .regular)
                         .lineLimit(1)
                     Spacer(minLength: 4)
@@ -153,8 +155,8 @@ private struct ConversationView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                InitialsAvatar(name: thread.title, size: 28)
-                Text(thread.title)
+                InitialsAvatar(name: device.title(for: thread), size: 28, photo: device.photo(for: thread))
+                Text(device.title(for: thread))
                     .font(.headline)
                     .lineLimit(1)
                 Spacer()

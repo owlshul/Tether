@@ -120,7 +120,8 @@ public final class TetherAppModel {
             service.runCommandPlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             service.mediaControlPlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             service.remoteVolumePlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
-            service.notificationPlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher()
+            service.notificationPlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            service.contactsPlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher()
         ]
         // objectWillChange fires before the value lands; hop a runloop turn and
         // coalesce bursts (a single SMS sync can publish hundreds of times).
@@ -291,6 +292,7 @@ public final class TetherAppModel {
             }
             update(dev, \.transfers, service.sharePlugin.transfers.filter { $0.deviceId == id })
             update(dev, \.smsThreads, threads)
+            update(dev, \.contacts, service.contactsPlugin.books[id] ?? ContactBook())
             update(dev, \.commands, service.runCommandPlugin.commands)
             update(dev, \.notifications, service.notificationPlugin.notifications[id] ?? [])
 
