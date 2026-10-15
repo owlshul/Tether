@@ -248,7 +248,9 @@ struct TetherTests {
             // Ring this Mac: the same packet type rings in either direction.
             "kdeconnect.findmyphone.request",
             // The phone's volume panel controls this Mac's volume too.
-            "kdeconnect.systemvolume.request"
+            "kdeconnect.systemvolume.request",
+            // And its Multimedia control drives this Mac as a player.
+            "kdeconnect.mpris.request"
         ] {
             #expect(incoming.contains(type), "\(type) must be receivable")
         }
@@ -272,8 +274,6 @@ struct TetherTests {
         }
 
         // Request/response pairs must not be conflated.
-        #expect(!incoming.contains("kdeconnect.mpris.request"))
-        #expect(!outgoing.contains("kdeconnect.mpris"))
         #expect(!outgoing.contains("kdeconnect.telephony"))
         #expect(!incoming.contains("kdeconnect.mousepad.keyboardstate"))
         #expect(!outgoing.contains("kdeconnect.mousepad.request"))

@@ -49,25 +49,3 @@ final class CallMediaPauser {
         }
     }
 }
-
-/// Play and pause through the system's Now Playing controls, the same path
-/// as the keyboard's media keys, but as explicit commands rather than a
-/// toggle, so a pause never starts anything.
-private enum MediaRemote {
-    enum Command: UInt32 {
-        case play = 0
-        case pause = 1
-    }
-
-    private typealias SendCommand = @convention(c) (UInt32, CFDictionary?) -> Bool
-
-    private static let sendCommand: SendCommand? = {
-        guard let handle = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_LAZY),
-              let symbol = dlsym(handle, "MRMediaRemoteSendCommand") else { return nil }
-        return unsafeBitCast(symbol, to: SendCommand.self)
-    }()
-
-    static func send(_ command: Command) {
-        _ = sendCommand?(command.rawValue, nil)
-    }
-}

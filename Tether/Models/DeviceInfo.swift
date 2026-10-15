@@ -80,6 +80,8 @@ public struct DeviceInfo: Codable, Sendable, Identifiable {
         "kdeconnect.battery",
         // Media control: state reports from the peer's player.
         "kdeconnect.mpris",
+        // The phone's Multimedia control driving this Mac
+        "kdeconnect.mpris.request",
         // Peer volume reporting.
         "kdeconnect.systemvolume",
         // The phone's volume panel controlling this Mac
@@ -121,6 +123,8 @@ public struct DeviceInfo: Codable, Sendable, Identifiable {
         "kdeconnect.battery",
         // Media transport and state queries.
         "kdeconnect.mpris.request",
+        // This Mac as a player in the phone's Multimedia control
+        "kdeconnect.mpris",
         // Ring request.
         "kdeconnect.findmyphone.request",
         // Peer volume queries and changes.
