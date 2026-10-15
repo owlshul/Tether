@@ -42,11 +42,16 @@ for pair in "arm64 AppleSilicon" "x86_64 Intel"; do
   derived="$BUILD/$arch"
   echo "\n==> Building $label ($arch)"
 
+  # A plain `build` doesn't strip, and the generated scheme turns on code
+  # coverage: without the last three settings the app ships about 5 MB of
+  # symbols and coverage counters. Symbols stay in the dSYM next to the app.
   xcodebuild -project Tether.xcodeproj -scheme Tether -configuration Release \
     -destination 'generic/platform=macOS' -derivedDataPath "$derived" \
     ARCHS="$arch" ONLY_ACTIVE_ARCH=NO \
     CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$IDENTITY" DEVELOPMENT_TEAM="" \
-    OTHER_CODE_SIGN_FLAGS="--timestamp=none" build -quiet
+    OTHER_CODE_SIGN_FLAGS="--timestamp=none" \
+    DEPLOYMENT_POSTPROCESSING=YES ENABLE_CODE_COVERAGE=NO CLANG_COVERAGE_MAPPING=NO \
+    build -quiet
 
   app="$derived/Build/Products/Release/Tether.app"
   binary="$app/Contents/MacOS/Tether"
@@ -56,6 +61,9 @@ for pair in "arm64 AppleSilicon" "x86_64 Intel"; do
   [[ "$built_archs" == "$arch" ]] || { echo "Expected $arch, built: $built_archs" >&2; exit 1; }
   minos=$(vtool -show-build "$binary" | awk '/minos/ { print $2; exit }')
   [[ "$minos" == "$MIN_MACOS" ]] || { echo "Expected minimum macOS $MIN_MACOS, got $minos" >&2; exit 1; }
+  # A build with coverage counters or a full symbol table is twice the size.
+  ! size -m "$binary" | grep -q __llvm_prf || { echo "$binary has code coverage built in" >&2; exit 1; }
+  (( $(nm "$binary" | wc -l) < 5000 )) || { echo "$binary isn't stripped" >&2; exit 1; }
   codesign --verify --deep --strict "$app"
   for code in "$app" "$app/Contents/PlugIns/TetherShare.appex"; do
     [[ "$(codesign -dvv "$code" 2>&1)" == *"Authority=$IDENTITY"* ]] \
