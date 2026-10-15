@@ -9,6 +9,9 @@ struct MessagesPane: View {
     @Bindable var device: DeviceViewModel
     @State private var selectedThreadId: Int64?
     @State private var searchText = ""
+    @State private var isComposing = false
+    /// Who a new message went to, until its conversation shows up to select.
+    @State private var pendingRecipient: String?
 
     private var filteredThreads: [SMSConversation] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -55,11 +58,28 @@ struct MessagesPane: View {
             .onChange(of: selectedThreadId) {
                 if let selectedThreadId { device.openThread(selectedThreadId) }
             }
+            .onChange(of: device.smsThreads) { selectPendingThread() }
+            .sheet(isPresented: $isComposing) {
+                NewMessageSheet(device: device) { number in
+                    pendingRecipient = number
+                    selectPendingThread()
+                }
+            }
         }
+    }
+
+    /// Selects the conversation a new message started, once the phone reports it.
+    private func selectPendingThread() {
+        guard let pendingRecipient, let key = ContactBook.key(for: pendingRecipient),
+              let thread = device.smsThreads.first(where: { $0.addresses.count == 1 && ContactBook.key(for: $0.addresses[0]) == key })
+        else { return }
+        selectedThreadId = thread.id
+        self.pendingRecipient = nil
     }
 
     private var threadList: some View {
         VStack(spacing: 0) {
+            HStack(spacing: 4) {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -75,7 +95,16 @@ struct MessagesPane: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(.quaternary.opacity(0.7), in: .rect(cornerRadius: 8, style: .continuous))
-            .padding(10)
+            .padding([.vertical, .leading], 10)
+
+            Button("New Message", systemImage: "square.and.pencil") { isComposing = true }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .font(.title3)
+                .padding(.trailing, 10)
+                .help("New Message")
+                .keyboardShortcut("n", modifiers: .command)
+            }
 
             List(filteredThreads, selection: $selectedThreadId) { thread in
                 ThreadRow(thread: thread, device: device)
@@ -168,6 +197,10 @@ private struct ConversationView: View {
 
             ScrollView {
                 LazyVStack(spacing: 4) {
+                    Button("Load Earlier Messages") { device.loadEarlierMessages(thread.threadId) }
+                        .buttonStyle(.link)
+                        .font(.callout)
+                        .padding(.top, 12)
                     ForEach(days) { group in
                         Text(group.day.formatted(date: .complete, time: .omitted))
                             .font(.caption)
@@ -272,4 +305,93 @@ enum MessageDate {
         }
         return date.formatted(date: .numeric, time: .omitted)
     }
+}
+
+/// Starts a conversation: pick a contact or type a number, then the message.
+private struct NewMessageSheet: View {
+    let device: DeviceViewModel
+    let onSent: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var recipient = ""
+    @State private var chosenName: String?
+    @State private var message = ""
+    @FocusState private var focus: Field?
+
+    private enum Field { case recipient, message }
+
+    private var matches: [(name: String, number: String)] {
+        chosenName == nil ? device.contacts.search(recipient) : []
+    }
+
+    /// A typed number, or the chosen contact's.
+    private var number: String? {
+        let trimmed = recipient.trimmingCharacters(in: .whitespaces)
+        return ContactBook.key(for: trimmed) == nil ? nil : trimmed
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("New Message").font(.headline)
+
+            VStack(alignment: .leading, spacing: 0) {
+                TextField("To: name or phone number", text: $recipient)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($focus, equals: .recipient)
+                    .onChange(of: recipient) { if chosenName != nil, recipient != chosenNumber { chosenName = nil } }
+                    .onSubmit { focus = .message }
+                if let chosenName {
+                    Text(chosenName).font(.caption).foregroundStyle(.secondary).padding(.top, 4)
+                }
+                if !matches.isEmpty {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(matches.enumerated()), id: \.offset) { _, match in
+                            Button {
+                                chosenName = match.name
+                                chosenNumber = match.number
+                                recipient = match.number
+                                focus = .message
+                            } label: {
+                                HStack {
+                                    Text(match.name)
+                                    Spacer()
+                                    Text(match.number).foregroundStyle(.secondary).monospacedDigit()
+                                }
+                                .contentShape(.rect)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 8))
+                    .padding(.top, 6)
+                }
+            }
+
+            TextField("Message", text: $message, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(3...8)
+                .focused($focus, equals: .message)
+
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Send") {
+                    guard let number else { return }
+                    device.sendSMS(to: [number], message: message.trimmingCharacters(in: .whitespacesAndNewlines), threadId: nil)
+                    onSent(number)
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(number == nil || message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 420)
+        .onAppear { focus = .recipient }
+    }
+
+    @State private var chosenNumber = ""
 }

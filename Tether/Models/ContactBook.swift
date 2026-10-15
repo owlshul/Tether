@@ -38,6 +38,24 @@ nonisolated struct ContactBook: Sendable, Equatable {
         }
     }
 
+    /// People and numbers matching `query` by name or number, for picking a
+    /// recipient. One entry per number.
+    func search(_ query: String, limit: Int = 8) -> [(name: String, number: String)] {
+        let query = query.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return [] }
+        let digits = query.filter(\.isWholeNumber)
+        var results: [(name: String, number: String)] = []
+        for contact in contacts.values.sorted(by: { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) {
+            let nameMatches = contact.name.localizedCaseInsensitiveContains(query)
+            for number in contact.numbers
+            where nameMatches || (digits.count >= 3 && number.filter(\.isWholeNumber).contains(digits)) {
+                results.append((contact.name, number))
+                if results.count == limit { return results }
+            }
+        }
+        return results
+    }
+
     /// The contact with this phone number, however it's written.
     func contact(for number: String) -> Contact? {
         guard let key = Self.key(for: number), let id = byNumber[key] else { return nil }
