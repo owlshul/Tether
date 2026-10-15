@@ -74,7 +74,10 @@ final class PhoneMount {
     }
 
     func unmount() async {
-        Self.forceUnmount(mountPoint)
+        // Off the main thread: a polite unmount waits for the drive to flush,
+        // and answering the drive can need the main thread.
+        let mountPoint = mountPoint
+        _ = await Task.detached { Self.forceUnmount(mountPoint) }.value
         await server.stop()
         hostName?.remove()
         hostName = nil
