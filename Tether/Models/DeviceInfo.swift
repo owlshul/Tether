@@ -97,6 +97,9 @@ public struct DeviceInfo: Codable, Sendable, Identifiable {
         // SMS messages and attachments
         "kdeconnect.sms.messages",
         "kdeconnect.sms.attachment_file",
+        // Contacts, as vCards
+        "kdeconnect.contacts.response_uids_timestamps",
+        "kdeconnect.contacts.response_vcards",
         // Phone storage, for Finder
         "kdeconnect.sftp",
         // Remote commands
@@ -133,6 +136,9 @@ public struct DeviceInfo: Codable, Sendable, Identifiable {
         "kdeconnect.sms.request_conversations",
         "kdeconnect.sms.request_conversation",
         "kdeconnect.sms.request_attachment",
+        // Contacts
+        "kdeconnect.contacts.request_all_uids_timestamps",
+        "kdeconnect.contacts.request_vcards_by_uid",
         // Remote commands
         "kdeconnect.runcommand",
         "kdeconnect.runcommand.output"

@@ -33,6 +33,7 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
     public let mousepadPlugin = MousepadPlugin()
     public let presenterPlugin = PresenterPlugin()
     public let smsPlugin = SMSPlugin()
+    public let contactsPlugin = ContactsPlugin()
     public let runCommandPlugin = RunCommandPlugin()
     public let sftpPlugin = SftpPlugin()
 
@@ -68,6 +69,7 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
             mousepadPlugin,
             presenterPlugin,
             smsPlugin,
+            contactsPlugin,
             runCommandPlugin,
             sftpPlugin
         ]
@@ -386,10 +388,12 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
     }
 
     public func unpair(deviceId: String) {
+        contactsPlugin.forget(deviceId: deviceId)
         dismissPairingRequestNotification(deviceId: deviceId)
         connectionLock.withLock {
             activeDeviceIds.remove(deviceId)
             activeHosts[deviceId] = nil
+            activeConnections[deviceId] = nil
         }
         if let conn = connectedDevices[deviceId] {
             conn.unpair()
