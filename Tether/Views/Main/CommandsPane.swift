@@ -14,34 +14,38 @@ struct CommandsPane: View {
     @AppStorage(RunCommandPlugin.shortcutsKey) private var shareShortcuts = false
 
     var body: some View {
-        Form {
-            Section {
-                ForEach(device.commands) { command in
-                    row(for: command)
+        GlassPage("Commands", subtitle: "\(device.name) can run these on this Mac from Run Command in KDE Connect.") {
+            Button("Add Command…") {
+                editing = RemoteCommand(name: "", command: "")
+            }
+            .glassButton()
+        } content: {
+            GlassSection("On this Mac", footer: "Commands run as your user account, so only add ones you trust.") {
+                if device.commands.isEmpty {
+                    Label("No commands yet.", systemImage: "terminal")
+                        .foregroundStyle(.secondary)
+                        .glassRow()
+                } else {
+                    ForEach(Array(device.commands.enumerated()), id: \.element.id) { index, command in
+                        if index > 0 { Divider().padding(.leading, 16) }
+                        row(for: command)
+                            .glassRow()
+                    }
                 }
-                Button("Add Command…") {
-                    editing = RemoteCommand(name: "", command: "")
-                }
-            } header: {
-                Text("Commands")
-            } footer: {
-                Text("\(device.name) can run these on this Mac from Run Command in KDE Connect. They run as your user account, so only add commands you trust.")
-                    .foregroundStyle(.secondary)
             }
 
-            Section {
+            GlassSection("Shortcuts") {
                 Toggle(isOn: $shareShortcuts) {
                     Text("Show my Shortcuts on the phone")
                     Text("Lists every shortcut from the Shortcuts app in Run Command, so \(device.name) can run them on this Mac.")
                 }
+                .toggleStyle(.switch)
                 .onChange(of: shareShortcuts) {
                     TetherService.shared.runCommandPlugin.refreshShortcuts()
                 }
-            } header: {
-                Text("Shortcuts")
+                .glassRow()
             }
         }
-        .formStyle(.grouped)
         .sheet(item: $editing) { command in
             CommandEditor(command: command) { device.saveCommand($0) }
         }
@@ -55,27 +59,30 @@ struct CommandsPane: View {
     }
 
     private func row(for command: RemoteCommand) -> some View {
-        LabeledContent {
-            HStack(spacing: 8) {
-                Button("Run") { device.executeCommand(id: command.id) }
-                Menu {
-                    Button("Edit…") { editing = command }
-                    Button("Delete…", role: .destructive) { commandToDelete = command }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .menuStyle(.button)
-                .menuIndicator(.hidden)
-                .buttonStyle(.borderless)
-                .fixedSize()
-                .accessibilityLabel("More for \(command.name)")
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(command.name)
+                Text(command.command)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
-        } label: {
-            Text(command.name)
-            Text(command.command)
-                .font(.system(.caption, design: .monospaced))
-                .lineLimit(1)
-                .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button("Run") { device.executeCommand(id: command.id) }
+                .glassButton()
+            Menu {
+                Button("Edit…") { editing = command }
+                Button("Delete…", role: .destructive) { commandToDelete = command }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .menuStyle(.button)
+            .menuIndicator(.hidden)
+            .buttonStyle(.borderless)
+            .fixedSize()
+            .accessibilityLabel("More for \(command.name)")
         }
         .contextMenu {
             Button("Run") { device.executeCommand(id: command.id) }
