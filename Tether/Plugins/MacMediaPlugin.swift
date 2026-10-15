@@ -68,8 +68,14 @@ public final class MacMediaPlugin: TetherPlugin, @unchecked Sendable {
             TetherLog("[MacMedia] \(connection.peerDeviceInfo?.deviceName ?? "Phone") asked for this Mac's players")
             connection.send(packet: NetworkPacket(type: Self.reportType, body: [
                 "playerList": [Self.playerName],
-                "supportAlbumArtPayload": false,
+                "supportAlbumArtPayload": true,
             ]))
+            return
+        }
+
+        // The phone asks for the artwork named in a now-playing report.
+        if let url = packet.string(for: "albumArtUrl") {
+            sendArtwork(url, to: connection)
             return
         }
 
@@ -138,6 +144,39 @@ public final class MacMediaPlugin: TetherPlugin, @unchecked Sendable {
             "pos": Int64((state?.position ?? 0) * 1000),
             "length": Int64((state?.duration ?? 0) * 1000),
             "volume": volume,
+            "albumArtUrl": state?.artworkURL ?? "",
         ])
+    }
+
+    // MARK: - Artwork
+
+    private var uploaders: [UUID: PayloadUploader] = [:]
+
+    /// Sends the artwork as a payload, the way KDE Connect transfers files.
+    private func sendArtwork(_ url: String, to connection: DeviceConnection) {
+        guard let artwork = reader.artwork(named: url) else { return }
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("tether-artwork-\(UUID().uuidString)")
+        guard (try? artwork.data.write(to: file)) != nil else { return }
+
+        let id = UUID()
+        let uploader = PayloadUploader()
+        uploaders[id] = uploader
+        uploader.start(
+            fileURL: file,
+            expectedPeerFingerprint: connection.peerCertificateFingerprint,
+            onReady: { offer in
+                connection.send(packet: NetworkPacket(
+                    type: Self.reportType,
+                    body: ["player": Self.playerName, "transferringAlbumArt": true, "albumArtUrl": url],
+                    payloadSize: offer.size,
+                    payloadTransferInfo: ["port": Int(offer.port)]
+                ))
+            },
+            onProgress: { _ in },
+            onComplete: { [weak self] _ in
+                try? FileManager.default.removeItem(at: file)
+                self?.queue.async { self?.uploaders[id] = nil }
+            }
+        )
     }
 }

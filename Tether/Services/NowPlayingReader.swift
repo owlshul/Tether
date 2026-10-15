@@ -24,6 +24,11 @@ nonisolated struct MacNowPlaying: Sendable, Equatable {
     /// Seconds into the track at `timestamp`.
     var elapsed: Double = 0
     var timestamp = Date()
+    /// Names the track's artwork once it's been read, for the phone to ask for.
+    var artworkURL: String?
+
+    /// Changes when the track does.
+    var trackKey: String { "\(app)|\(title)|\(artist)|\(album)" }
 
     /// Where playback is now, estimated from the last report.
     var position: Double {
@@ -44,6 +49,8 @@ nonisolated final class NowPlayingReader: @unchecked Sendable {
     private var wanted = false
     private var failures = 0
     private(set) var current: MacNowPlaying?
+    /// The current track's artwork, read once per track.
+    private var artwork: (url: String, data: Data, mimeType: String)?
 
     private init() {
         // The reader is a separate process; it would outlive Tether otherwise.
@@ -76,6 +83,14 @@ nonisolated final class NowPlayingReader: @unchecked Sendable {
 
     func state() -> MacNowPlaying? {
         queue.sync { current }
+    }
+
+    /// The artwork named `url`, if it's still the current track's.
+    func artwork(named url: String) -> (data: Data, mimeType: String)? {
+        queue.sync {
+            guard let artwork, artwork.url == url else { return nil }
+            return (artwork.data, artwork.mimeType)
+        }
     }
 
     /// Moves playback to `seconds` into the track.
@@ -159,8 +174,47 @@ nonisolated final class NowPlayingReader: @unchecked Sendable {
     }
 
     private func publish(_ state: MacNowPlaying?) {
+        var state = state
+        let newTrack = state?.trackKey != current?.trackKey
+        if !newTrack { state?.artworkURL = current?.artworkURL }
         guard state != current else { return }
         current = state
         onChange?(state)
+        if newTrack {
+            artwork = nil
+            if let state { fetchArtwork(for: state.trackKey) }
+        }
+    }
+
+    /// Reads the artwork with a one-off `get`: the stream leaves it out, since
+    /// it would repeat hundreds of kilobytes in every update.
+    private func fetchArtwork(for trackKey: String) {
+        guard let script, let framework else { return }
+        DispatchQueue.global(qos: .utility).async {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+            process.arguments = [script.path, framework.path, "get"]
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = FileHandle.nullDevice
+            guard (try? process.run()) != nil else { return }
+            let output = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            guard let payload = try? JSONSerialization.jsonObject(with: output) as? [String: Any],
+                  let base64 = payload["artworkData"] as? String,
+                  let data = Data(base64Encoded: base64), !data.isEmpty else { return }
+            let mimeType = payload["artworkMimeType"] as? String ?? "image/jpeg"
+            self.queue.async {
+                guard var state = self.current, state.trackKey == trackKey else { return }
+                // A name that changes with the image, so the phone never shows
+                // the previous track's art from its cache. KDE Connect on
+                // Android only asks the computer for file: and kdeconnect: URLs.
+                let url = "kdeconnect://artwork/\(data.hashValue.magnitude)"
+                self.artwork = (url, data, mimeType)
+                state.artworkURL = url
+                self.current = state
+                self.onChange?(state)
+            }
+        }
     }
 }
