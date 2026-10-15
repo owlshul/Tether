@@ -67,3 +67,21 @@ struct ContactBookTests {
         #expect(book.isEmpty)
     }
 }
+
+struct NowPlayingReaderTests {
+    @Test func readsTheAdaptersPayload() throws {
+        let state = try #require(NowPlayingReader.parse([
+            "title": "Midnight City", "artist": "M83", "album": "Hurry Up, We're Dreaming",
+            "playing": true, "duration": 241.5, "elapsedTime": 30.0, "timestamp": "2026-10-15T06:21:32Z",
+        ]))
+        #expect(state.title == "Midnight City")
+        #expect(state.isPlaying)
+        #expect(state.duration == 241.5)
+        #expect(state.timestamp == ISO8601DateFormatter().date(from: "2026-10-15T06:21:32Z"))
+    }
+
+    @Test func ignoresNothingPlaying() {
+        #expect(NowPlayingReader.parse([:]) == nil)
+        #expect(NowPlayingReader.parse(["title": ""]) == nil)
+    }
+}
