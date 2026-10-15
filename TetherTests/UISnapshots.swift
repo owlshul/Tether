@@ -23,6 +23,7 @@ import ScreenCaptureKit
         let dir = URL(fileURLWithPath: Self.outputDirectory!)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let windowSize = CGSize(width: 1100, height: 720)
+        PhoneFilesController.shared.showDemoDrive(for: "mock_phone")
 
         for dark in [false, true] {
             let suffix = dark ? "dark" : "light"
@@ -78,6 +79,11 @@ import ScreenCaptureKit
                          to: dir.appendingPathComponent("files-settings-light.png"))
 
         for dark in [false, true] {
+            try await render(RingingView(deviceName: "Pixel 9 Pro") {}, size: CGSize(width: 340, height: 230), dark: dark,
+                             titled: false, to: dir.appendingPathComponent("ringing-\(dark ? "dark" : "light").png"))
+        }
+
+        for dark in [false, true] {
             try await render(AboutSettings(), size: CGSize(width: 560, height: 460), dark: dark,
                              to: dir.appendingPathComponent("about-\(dark ? "dark" : "light").png"))
         }
@@ -95,10 +101,30 @@ import ScreenCaptureKit
         window.backgroundColor = .windowBackgroundColor
         window.contentViewController = NSHostingController(rootView: view.frame(width: size.width, height: size.height))
         window.setContentSize(size)
-        window.orderFront(nil)
+        // Active, as people see the window they're using: accent-coloured
+        // selection and a toolbar that isn't dimmed.
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
         defer { window.close() }
 
         try await Task.sleep(for: .milliseconds(900))
+
+        // TETHER_SNAPSHOT_SCALE=2 draws at that scale, for crisp marketing
+        // images on a 1x display, at the cost of Liquid Glass.
+        if let scale = ProcessInfo.processInfo.environment["TETHER_SNAPSHOT_SCALE"].flatMap(Double.init), scale > 1,
+           let frameView = window.contentView?.superview ?? window.contentView {
+            frameView.layoutSubtreeIfNeeded()
+            let bounds = frameView.bounds
+            let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil, pixelsWide: Int(bounds.width * scale), pixelsHigh: Int(bounds.height * scale),
+                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+            rep.size = bounds.size
+            frameView.cacheDisplay(in: bounds, to: rep)
+            try rep.representation(using: .png, properties: [:])?.write(to: url)
+            return
+        }
 
         // Capture through the window server, so Liquid Glass and materials
         // appear as they do on screen; cacheDisplay can't draw them.
