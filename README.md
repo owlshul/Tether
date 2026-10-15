@@ -51,17 +51,17 @@ On your phone, install **KDE Connect** from [Google Play](https://play.google.co
 
 **Notifications, answered from the Mac.** Phone notifications appear in Notification Center. Messaging apps that support it (SMS, WhatsApp, Telegram, Signal and others) can be replied to right from the banner, and anything you dismiss on the Mac is dismissed on the phone. Sign-in codes get a **Copy Code** button, or can be copied automatically.
 
-**Your texts.** SMS conversations sync to the Messages section, where you can read threads and send replies.
+**Your texts.** SMS conversations sync to the Messages section, with names and photos from your phone's contacts. Read whole threads, reply, or start a new conversation. Calls show who's calling, with a button to mute the ringer, and whatever is playing on the Mac pauses until the call ends.
 
 **Files, both ways.** Drop files anywhere in the Tether window or on the menu bar popover, or choose **Share › Tether** in Finder, Photos and other apps, to send them to your phone. With more than one phone connected, the Share menu asks which one. Files shared from your phone land in **Downloads** with live progress.
 
 **Your phone as a drive.** While your phone is connected, it appears in Finder as a drive named after it, with an eject button. Browse its storage, open photos and documents straight from it, and drag files in and out. Files are read from the phone as you open them, so a video starts playing right away. It uses KDE Connect's file sharing, so it works over Wi-Fi and Tailscale with no setup and no administrator password. If you use ADB, you can switch to wireless debugging in **Settings › Files**.
 
-**Clipboard, media and remote control.** Copy on one device, paste on the other. See what's playing on your phone and control playback and volume. **Find Phone** rings it at full volume, and **Ring** in KDE Connect on the phone rings your Mac.
+**Clipboard, media and remote control.** Copy on one device, paste on the other. See what's playing on your phone, with artwork, and control playback and volume. It works the other way too: KDE Connect's Multimedia control on the phone shows what's playing on the Mac (Music, Spotify, a video in Safari) and sets the Mac's volume. **Find Phone** rings it at full volume, and **Ring** in KDE Connect on the phone rings your Mac.
 
 **Your phone as a trackpad and presenter.** KDE Connect's Remote Input and Presentation tools move the pointer, click, scroll, type and show an on-screen laser pointer. This needs Accessibility access, which you can grant from Tether's Overview or Settings.
 
-**Commands.** Set up shell commands on your Mac and run them from your phone.
+**Commands.** Set up shell commands on your Mac and run them from your phone, along with your Shortcuts if you choose. Tether can also lock the Mac when your phone leaves.
 
 **Lives in the menu bar.** The menu bar popover shows your phone's battery and connection, quick actions, what's playing and new pairing requests. The main window lists your devices in the sidebar, with each phone's Overview, Messages, Notifications, Files and Commands as tabs. It uses Liquid Glass on macOS 26 and translucent materials on macOS 15.
 
@@ -86,17 +86,17 @@ KDE Connect normally needs your phone and Mac on the same Wi-Fi. If you use [Tai
 ## Small, and quiet when idle
 
 <p align="center">
-  <img src="docs/images/size.jpg" alt="Tether's 2.3 MB download compared with the official KDE Connect for macOS at 87 MB" />
+  <img src="docs/images/size.jpg" alt="Tether's download compared with the official KDE Connect for macOS at 87 MB" />
 </p>
 
-| | Tether 1.4 | KDE Connect 26.08 for macOS |
+| | Tether 1.8 | KDE Connect 26.08 for macOS |
 | --- | --- | --- |
-| Download (Apple Silicon disk image) | **2.3 MB** | 87 MB |
-| Installed app | **5.8 MB** | |
-| Memory while idle | **19 MB** | |
+| Download (Apple Silicon disk image) | **2.6 MB** | 87 MB |
+| Installed app | **4.3 MB** | |
+| Memory while idle | **23 MB** | |
 | CPU while idle | **0%** | |
 
-Measured in October 2026 on an Apple Silicon Mac: Tether's numbers come from the 1.4 release while connected to a phone, and the official app's download size from KDE's release builds. The empty cells weren't measured.
+Measured in October 2026 on an Apple Silicon Mac: Tether's numbers come from the 1.8 release in the background while connected to a phone, with its contacts and messages synced, and the official app's download size from KDE's release builds. The empty cells weren't measured. With the window open, Tether uses more, about 50 to 80 MB while you read long conversations.
 
 ## Privacy and security
 
@@ -153,9 +153,10 @@ scripts/release.sh
 - **Phone drive:** a small NFS version 3 server on the loopback interface, mounted by the user with `mount_nfs` and named through a local-only Bonjour host, backed by SFTP (a native SSH client on CryptoKit) or ADB.
 - **Networking:** BSD sockets with `poll()`-driven I/O and Security framework TLS. KDE Connect upgrades an open connection to TLS after a plaintext handshake, which `Network.framework` can't do.
 - **Identity:** created once with the `openssl` tool that ships with macOS, then loaded in memory by the Security framework.
+- **Mac's Now Playing:** since macOS 15.4 only Apple-signed programs may read it, so Tether runs [mediaremote-adapter](https://github.com/ungive/mediaremote-adapter) (BSD-3) through `/usr/bin/perl`. It's built from source by `scripts/build-mediaremote-adapter.sh` and lives in `Vendor/`.
 
 ## License
 
-GPL-2.0, like the KDE Connect ecosystem. See [LICENSE](LICENSE).
+GPL-2.0, like the KDE Connect ecosystem. See [LICENSE](LICENSE). Tether includes mediaremote-adapter by Jonas van den Berg, under the BSD 3-Clause License ([Vendor/MediaRemoteAdapter/LICENSE](Vendor/MediaRemoteAdapter/LICENSE)).
 
 Tether is an independent project and isn't affiliated with KDE.
