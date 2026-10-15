@@ -62,6 +62,8 @@ public final class MacMediaPlugin: TetherPlugin, @unchecked Sendable {
     }
 
     private func handle(_ packet: NetworkPacket, from connection: DeviceConnection) {
+        let fields = packet.body.filter { $0.key != "player" }.map { "\($0.key)=\($0.value.value)" }.sorted()
+        TetherLog("[MacMedia] Request: \(fields.joined(separator: ", "))")
         if packet.bool(for: "requestPlayerList") || packet.string(for: "player") != Self.playerName {
             TetherLog("[MacMedia] \(connection.peerDeviceInfo?.deviceName ?? "Phone") asked for this Mac's players")
             connection.send(packet: NetworkPacket(type: Self.reportType, body: [
@@ -72,20 +74,9 @@ public final class MacMediaPlugin: TetherPlugin, @unchecked Sendable {
         }
 
         if let action = packet.string(for: "action") {
-            let command: MediaRemote.Command? = switch action {
-            case "Play": .play
-            case "Pause": .pause
-            case "PlayPause": .togglePlayPause
-            case "Stop": .stop
-            case "Next": .nextTrack
-            case "Previous": .previousTrack
-            default: nil
-            }
-            if let command {
-                MediaRemote.send(command)
-                // Report the new state once the player has reacted.
-                queue.asyncAfter(deadline: .now() + 0.6) { connection.send(packet: self.nowPlaying(self.reader.state())) }
-            }
+            perform(action)
+            // Report the new state once the player has reacted.
+            queue.asyncAfter(deadline: .now() + 0.8) { connection.send(packet: self.nowPlaying(self.reader.state())) }
         }
 
         // "SetPosition" is milliseconds into the track; "Seek" moves by microseconds.
@@ -104,6 +95,31 @@ public final class MacMediaPlugin: TetherPlugin, @unchecked Sendable {
         }
     }
 
+    /// Media keys, which every player obeys (Safari ignores MediaRemote
+    /// commands from other apps). There's only a toggle key, so Play and
+    /// Pause press it only when the state is the other one, and nothing is
+    /// pressed with nothing playing, since ⏯ would then open Music.
+    private func perform(_ action: String) {
+        let state = reader.state()
+        let isPlaying = state?.isPlaying ?? SystemAudio.isPlaying()
+        let hasPlayer = state != nil || isPlaying
+        let key: InputSynthesizer.MediaKey?
+        let fallback: MediaRemote.Command
+        switch action {
+        case "PlayPause": (key, fallback) = (hasPlayer ? .playPause : nil, .togglePlayPause)
+        case "Play": (key, fallback) = (hasPlayer && !isPlaying ? .playPause : nil, .play)
+        case "Pause", "Stop": (key, fallback) = (isPlaying ? .playPause : nil, .pause)
+        case "Next": (key, fallback) = (hasPlayer ? .next : nil, .nextTrack)
+        case "Previous": (key, fallback) = (hasPlayer ? .previous : nil, .previousTrack)
+        default: return
+        }
+        guard let key else { return }
+        if !InputSynthesizer.shared.pressMediaKey(key) {
+            TetherLog("[MacMedia] No Accessibility access for media keys; some players will ignore \(action)")
+            MediaRemote.send(fallback)
+        }
+    }
+
     private func nowPlaying(_ state: MacNowPlaying?) -> NetworkPacket {
         let volume = SystemAudio.defaultOutputDevice().flatMap(SystemAudio.volume(of:)).map { Int(($0 * 100).rounded()) } ?? 0
         return NetworkPacket(type: Self.reportType, body: [
@@ -116,7 +132,8 @@ public final class MacMediaPlugin: TetherPlugin, @unchecked Sendable {
             "canPlay": true,
             "canGoNext": true,
             "canGoPrevious": true,
-            "canSeek": (state?.duration ?? 0) > 0,
+            // Safari ignores seeking from other apps.
+            "canSeek": (state?.duration ?? 0) > 0 && state?.app != "com.apple.Safari",
             // Milliseconds.
             "pos": Int64((state?.position ?? 0) * 1000),
             "length": Int64((state?.duration ?? 0) * 1000),

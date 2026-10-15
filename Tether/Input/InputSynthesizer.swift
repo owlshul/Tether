@@ -217,4 +217,30 @@ public final class InputSynthesizer: @unchecked Sendable {
             event.post(tap: .cghidEventTap)
         }
     }
+
+    // MARK: - Media keys
+
+    enum MediaKey: Int32 {
+        case playPause = 16 // NX_KEYTYPE_PLAY
+        case next = 17      // NX_KEYTYPE_NEXT
+        case previous = 18  // NX_KEYTYPE_PREVIOUS
+    }
+
+    /// Presses a media key, as the keyboard's ⏯ ⏭ ⏮ do. Unlike MediaRemote
+    /// commands, every player obeys these, Safari included. Returns false
+    /// without Accessibility access.
+    @discardableResult
+    func pressMediaKey(_ key: MediaKey) -> Bool {
+        guard isAccessibilityTrusted else { return false }
+        for down in [true, false] {
+            let event = NSEvent.otherEvent(
+                with: .systemDefined, location: .zero,
+                modifierFlags: NSEvent.ModifierFlags(rawValue: down ? 0xa00 : 0xb00),
+                timestamp: 0, windowNumber: 0, context: nil,
+                subtype: 8, data1: Int((key.rawValue << 16) | ((down ? 0xa : 0xb) << 8)), data2: -1
+            )
+            event?.cgEvent?.post(tap: .cghidEventTap)
+        }
+        return true
+    }
 }

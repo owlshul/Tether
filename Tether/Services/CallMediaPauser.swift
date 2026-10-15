@@ -28,8 +28,11 @@ final class CallMediaPauser {
     func callStarted(_ key: String) {
         activeCalls.insert(key)
         resumeTask?.cancel()
-        guard isEnabled, !pausedForCall, SystemAudio.isPlaying() else { return }
-        MediaRemote.send(.pause)
+        // The Now Playing reader knows whether something is playing; without
+        // it, any sound counts.
+        let isPlaying = NowPlayingReader.shared.state()?.isPlaying ?? SystemAudio.isPlaying()
+        guard isEnabled, !pausedForCall, isPlaying else { return }
+        Self.press(.pause)
         pausedForCall = true
         TetherLog("[Calls] Paused media for a call")
     }
@@ -44,8 +47,16 @@ final class CallMediaPauser {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled, activeCalls.isEmpty, pausedForCall else { return }
             pausedForCall = false
-            MediaRemote.send(.play)
+            Self.press(.play)
             TetherLog("[Calls] Resumed media after the call")
+        }
+    }
+
+    /// The ⏯ key, which every player obeys, or a MediaRemote command without
+    /// Accessibility access. Only called when the state is known to flip.
+    private static func press(_ command: MediaRemote.Command) {
+        if !InputSynthesizer.shared.pressMediaKey(.playPause) {
+            MediaRemote.send(command)
         }
     }
 }

@@ -16,6 +16,8 @@ nonisolated struct MacNowPlaying: Sendable, Equatable {
     var title = ""
     var artist = ""
     var album = ""
+    /// The app playing it, e.g. com.apple.Safari for a video in Safari.
+    var app = ""
     var isPlaying = false
     /// Seconds.
     var duration: Double = 0
@@ -146,6 +148,7 @@ nonisolated final class NowPlayingReader: @unchecked Sendable {
         state.title = title
         state.artist = payload["artist"] as? String ?? ""
         state.album = payload["album"] as? String ?? ""
+        state.app = payload["parentApplicationBundleIdentifier"] as? String ?? payload["bundleIdentifier"] as? String ?? ""
         state.isPlaying = payload["playing"] as? Bool ?? false
         state.duration = payload["duration"] as? Double ?? 0
         state.elapsed = payload["elapsedTime"] as? Double ?? 0
