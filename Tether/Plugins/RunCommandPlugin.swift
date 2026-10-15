@@ -24,6 +24,14 @@ public final class RunCommandPlugin: ObservableObject, TetherPlugin, @unchecked 
     private var activeProcesses: [UInt32: Process] = [:]
     private var executionCounter: UInt32 = 0
     private let userDefaultsKey = "tether_remote_commands"
+
+    /// Commands › "Show my Shortcuts on the phone". Off by default: a shortcut
+    /// can do anything, so exposing them is the user's choice.
+    static let shortcutsKey = "tether_share_shortcuts"
+    static let shortcutPrefix = "shortcut:"
+    /// The user's Shortcuts, as commands, when sharing them is on.
+    private var shortcutCommands: [RemoteCommand] = []
+    private var connections: [String: DeviceConnection] = [:]
     private let defaults: UserDefaults
 
     /// Tests pass their own `defaults` so they never touch the saved commands.
@@ -33,10 +41,54 @@ public final class RunCommandPlugin: ObservableObject, TetherPlugin, @unchecked 
     }
 
     public func onConnected(connection: DeviceConnection) {
+        if let id = connection.peerDeviceInfo?.deviceId {
+            lock.withLock { connections[id] = connection }
+        }
         sendConfig(to: connection)
+        refreshShortcuts()
     }
 
-    public func onDisconnected(connection: DeviceConnection) {}
+    public func onDisconnected(connection: DeviceConnection) {
+        guard let id = connection.peerDeviceInfo?.deviceId else { return }
+        lock.withLock { if connections[id] === connection { connections[id] = nil } }
+    }
+
+    // MARK: - Shortcuts
+
+    /// Reads the user's Shortcuts and sends the updated list to every
+    /// connected phone. Also called when the setting changes.
+    public func refreshShortcuts() {
+        let enabled = defaults.bool(forKey: Self.shortcutsKey)
+        DispatchQueue.global(qos: .utility).async {
+            let names = enabled ? Self.shortcutNames() : []
+            let commands = names.map {
+                RemoteCommand(id: Self.shortcutPrefix + $0, name: $0, command: "Shortcut: \($0)")
+            }
+            let (changed, targets) = self.lock.withLock {
+                let changed = commands != self.shortcutCommands
+                self.shortcutCommands = commands
+                return (changed, Array(self.connections.values))
+            }
+            guard changed else { return }
+            TetherLog("[RunCommandPlugin] Sharing \(commands.count) Shortcut(s)")
+            for connection in targets { self.sendConfig(to: connection) }
+        }
+    }
+
+    private static func shortcutNames() -> [String] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/shortcuts")
+        process.arguments = ["list"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return [] }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return String(decoding: data, as: UTF8.self)
+            .components(separatedBy: .newlines)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+    }
 
     public func handlePacket(connection: DeviceConnection, packet: NetworkPacket) {
         if packet.bool(for: "requestCommandList") {
@@ -112,7 +164,8 @@ public final class RunCommandPlugin: ObservableObject, TetherPlugin, @unchecked 
 
     public func sendConfig(to connection: DeviceConnection) {
         var commandMap: [String: [String: String]] = [:]
-        for cmd in commands {
+        let shortcuts = lock.withLock { shortcutCommands }
+        for cmd in commands + shortcuts {
             commandMap[cmd.id] = [
                 "name": cmd.name,
                 "command": cmd.command
@@ -135,13 +188,14 @@ public final class RunCommandPlugin: ObservableObject, TetherPlugin, @unchecked 
             ]
         )
         connection.send(packet: packet)
-        TetherLog("[RunCommandPlugin] Sent commandList (\(commands.count) commands) to \(connection.peerDeviceInfo?.deviceName ?? "device")")
+        TetherLog("[RunCommandPlugin] Sent commandList (\(commandMap.count) commands) to \(connection.peerDeviceInfo?.deviceName ?? "device")")
     }
 
     // MARK: - Process Execution
 
     public func startCommand(key: String, connection: DeviceConnection?) {
-        guard let command = commands.first(where: { $0.id == key }) else {
+        let shortcuts = lock.withLock { shortcutCommands }
+        guard let command = (commands + shortcuts).first(where: { $0.id == key }) else {
             TetherLog("[RunCommandPlugin] Unknown command key: \(key)")
             return
         }
@@ -170,8 +224,14 @@ public final class RunCommandPlugin: ObservableObject, TetherPlugin, @unchecked 
         }
 
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", command.command]
+        if command.id.hasPrefix(Self.shortcutPrefix) {
+            // Run by name, never through the shell: a shortcut's name is text.
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/shortcuts")
+            process.arguments = ["run", String(command.id.dropFirst(Self.shortcutPrefix.count))]
+        } else {
+            process.executableURL = URL(fileURLWithPath: "/bin/sh")
+            process.arguments = ["-c", command.command]
+        }
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()

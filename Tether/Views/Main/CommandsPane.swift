@@ -11,6 +11,7 @@ struct CommandsPane: View {
     let device: DeviceViewModel
     @State private var editing: RemoteCommand?
     @State private var commandToDelete: RemoteCommand?
+    @AppStorage(RunCommandPlugin.shortcutsKey) private var shareShortcuts = false
 
     var body: some View {
         Form {
@@ -26,6 +27,18 @@ struct CommandsPane: View {
             } footer: {
                 Text("\(device.name) can run these on this Mac from Run Command in KDE Connect. They run as your user account, so only add commands you trust.")
                     .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle(isOn: $shareShortcuts) {
+                    Text("Show my Shortcuts on the phone")
+                    Text("Lists every shortcut from the Shortcuts app in Run Command, so \(device.name) can run them on this Mac.")
+                }
+                .onChange(of: shareShortcuts) {
+                    TetherService.shared.runCommandPlugin.refreshShortcuts()
+                }
+            } header: {
+                Text("Shortcuts")
             }
         }
         .formStyle(.grouped)
