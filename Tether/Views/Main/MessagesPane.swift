@@ -92,9 +92,9 @@ struct MessagesPane: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(.quaternary.opacity(0.7), in: .rect(cornerRadius: 8, style: .continuous))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .glassCapsule()
             .padding([.vertical, .leading], 10)
 
             Button("New Message", systemImage: "square.and.pencil") { isComposing = true }
@@ -228,12 +228,9 @@ private struct ConversationView: View {
                 .lineLimit(1...6)
                 .focused($isComposerFocused)
                 .onSubmit(send)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(Color(nsColor: .textBackgroundColor), in: .rect(cornerRadius: 16, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.separator, lineWidth: 0.5)
-                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .glassCapsule()
 
             Button("Send", systemImage: "arrow.up.circle.fill", action: send)
                 .labelStyle(.iconOnly)
@@ -243,9 +240,8 @@ private struct ConversationView: View {
                 .disabled(trimmedDraft.isEmpty)
                 .keyboardShortcut(.return, modifiers: .command)
         }
-        .padding(12)
-        .background(.bar)
-        .overlay(alignment: .top) { Divider() }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 
     private var trimmedDraft: String { draft.trimmingCharacters(in: .whitespacesAndNewlines) }
