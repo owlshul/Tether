@@ -226,6 +226,7 @@ private struct GeneralSettings: View {
     @State private var name = ""
     @AppStorage(MotionPreference.key) private var reduceMotion = false
     @AppStorage(OneTimeCode.autoCopyKey) private var copyCodes = false
+    @AppStorage(CallMediaPauser.settingKey) private var pauseMediaDuringCalls = true
 
     var body: some View {
         Form {
@@ -252,6 +253,10 @@ private struct GeneralSettings: View {
                 Toggle(isOn: $copyCodes) {
                     Text("Copy verification codes automatically")
                     Text("When a notification from your phone contains a sign-in code, Tether puts it on the clipboard.")
+                }
+                Toggle(isOn: $pauseMediaDuringCalls) {
+                    Text("Pause media during calls")
+                    Text("Pauses what's playing on this Mac while your phone rings or you're on a call, and resumes it afterwards.")
                 }
             }
 
