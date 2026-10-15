@@ -10,47 +10,35 @@ struct FilesPane: View {
     let device: DeviceViewModel
 
     var body: some View {
-        Form {
-            Section {
-                LabeledContent {
-                    Button("Choose Files…") {
-                        device.sendFiles(FilePicker.chooseFiles(sendingTo: device.name))
-                    }
-                } label: {
-                    Text("Send to \(device.name)")
-                    Text("Or drop files anywhere in this window.")
-                }
+        GlassPage("Files", subtitle: "Send files to \(device.name), or drop them anywhere in this window.") {
+            Button("Choose Files…") {
+                device.sendFiles(FilePicker.chooseFiles(sendingTo: device.name))
             }
-
+            .glassButton()
+        } content: {
             PhoneDriveSection(device: device)
 
-            Section {
+            GlassSection("Transfers", footer: "Files from \(device.name) are saved to your Downloads folder.") {
+                Button("Open Downloads") {
+                    if let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first {
+                        NSWorkspace.shared.open(downloads)
+                    }
+                }
+                .buttonStyle(.link)
+            } content: {
                 if device.transfers.isEmpty {
-                    Text("Nothing sent or received yet.")
+                    Label("Nothing sent or received yet.", systemImage: "arrow.up.arrow.down")
                         .foregroundStyle(.secondary)
+                        .glassRow()
                 } else {
-                    ForEach(device.transfers) { item in
+                    ForEach(Array(device.transfers.enumerated()), id: \.element.id) { index, item in
+                        if index > 0 { Divider().padding(.leading, 56) }
                         TransferRow(item: item)
+                            .glassRow()
                     }
                 }
-            } header: {
-                HStack {
-                    Text("Transfers")
-                    Spacer()
-                    Button("Open Downloads") {
-                        if let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first {
-                            NSWorkspace.shared.open(downloads)
-                        }
-                    }
-                    .buttonStyle(.link)
-                    .font(.callout)
-                }
-            } footer: {
-                Text("Files from \(device.name) are saved to your Downloads folder.")
-                    .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
     }
 }
 
@@ -61,37 +49,44 @@ private struct PhoneDriveSection: View {
 
     var body: some View {
         let state = files.driveState(for: device.id)
-        Section {
-            LabeledContent {
+        GlassSection("Phone Drive") {
+            HStack(spacing: 14) {
+                Image(systemName: state == .mounted ? "externaldrive.fill.badge.checkmark" : "externaldrive")
+                    .font(.title2)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(state == .mounted ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary))
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title(for: state))
+                        .fontWeight(.semibold)
+                    Text(detail(for: state))
+                        .font(.callout)
+                        .foregroundStyle(.primary.opacity(0.7))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
                 HStack(spacing: 8) {
                     switch state {
                     case .mounted:
                         Button("Eject") { files.eject(device.id) }
+                            .glassButton()
                         Button("Show in Finder") { files.showInFinder(device.id) }
-                            .keyboardShortcut(.defaultAction)
+                            .buttonStyle(.borderedProminent)
                     case .ejected, .failed:
                         Button("Mount") { files.mountAgain(device.id) }
+                            .buttonStyle(.borderedProminent)
                     case .turnedOff:
                         Button("Turn On") { files.isEnabled = true }
+                            .glassButton()
                     case .mounting:
                         ProgressView().controlSize(.small)
                     case .notConnected:
                         EmptyView()
                     }
                 }
-            } label: {
-                Label {
-                    Text(title(for: state))
-                    Text(detail(for: state))
-                } icon: {
-                    Image(systemName: state == .mounted ? "externaldrive.fill.badge.checkmark" : "externaldrive")
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(state == .mounted ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary))
-                        .contentTransition(.symbolEffect(.replace))
-                }
             }
-        } header: {
-            Text("Phone Drive")
+            .glassRow()
         }
     }
 
