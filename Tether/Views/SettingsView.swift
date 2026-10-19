@@ -228,6 +228,16 @@ private struct GeneralSettings: View {
     @AppStorage(OneTimeCode.autoCopyKey) private var copyCodes = false
     @AppStorage(CallMediaPauser.settingKey) private var pauseMediaDuringCalls = true
     @AppStorage(AwayLock.settingKey) private var lockWhenPhoneLeaves = false
+    @AppStorage(MenuBarQuickActionsSettings.showQuickActionsKey) private var showQuickActions = true
+    @AppStorage(MenuBarQuickActionsSettings.showSilencePhoneKey) private var showSilencePhone = true
+    @AppStorage(MenuBarQuickActionsSettings.showMediaKey) private var showMedia = true
+    @AppStorage(MenuBarQuickActionsSettings.showFindPhoneKey) private var showFindPhone = true
+    @AppStorage(MenuBarQuickActionsSettings.showClipboardKey) private var showClipboard = true
+    @AppStorage(MenuBarQuickActionsSettings.showSendFilesKey) private var showSendFiles = true
+    @AppStorage(MenuBarQuickActionsSettings.showBatteryKey) private var showBattery = true
+    @AppStorage("TetherNotifyOnClipboardSync") private var notifyClipboard = true
+    @AppStorage(BatteryAlertManager.lowAlertKey) private var lowBatteryAlert = true
+    @AppStorage(BatteryAlertManager.fullAlertKey) private var fullBatteryAlert = true
 
     var body: some View {
         Form {
@@ -263,6 +273,34 @@ private struct GeneralSettings: View {
                     Text("Lock this Mac when your phone leaves")
                     Text("Locks the screen when your phone has been disconnected for half a minute, such as when you walk away with it.")
                 }
+            }
+
+            Section {
+                Toggle("Show quick action icons in menu bar", isOn: $showQuickActions)
+                if showQuickActions {
+                    Toggle("Silence phone icon", isOn: $showSilencePhone)
+                    Toggle("Music play/pause icon", isOn: $showMedia)
+                    Toggle("Find phone icon", isOn: $showFindPhone)
+                    Toggle("Send clipboard icon", isOn: $showClipboard)
+                    Toggle("Send files icon", isOn: $showSendFiles)
+                    Toggle("Phone battery (mobile icon)", isOn: $showBattery)
+                }
+            } header: {
+                Text("Menu Bar Quick Actions")
+            } footer: {
+                Text("Adds clickable icons directly to the macOS top bar next to Tether. The phone battery icon displays a mobile phone with charge level to distinguish it from your Mac battery.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Clipboard sync alerts", isOn: $notifyClipboard)
+                Toggle("Low battery alert (≤15%)", isOn: $lowBatteryAlert)
+                Toggle("Full charge alert (100%)", isOn: $fullBatteryAlert)
+            } header: {
+                Text("Smart Notifications")
+            } footer: {
+                Text("Receive macOS notification banners when text is synced from your phone clipboard, or when your phone battery is running low or finishes charging.")
+                    .foregroundStyle(.secondary)
             }
 
             TailscaleSection(viewModel: viewModel)

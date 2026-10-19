@@ -5,6 +5,7 @@
 
 import AppKit
 import Foundation
+import UserNotifications
 
 public final class ClipboardPlugin: TetherPlugin, @unchecked Sendable {
     public let supportedPacketTypes = [
@@ -21,6 +22,10 @@ public final class ClipboardPlugin: TetherPlugin, @unchecked Sendable {
     private let lock = NSLock()
 
     public init() {
+        UserDefaults.standard.register(defaults: [
+            "TetherNotifyOnClipboardSync": true
+        ])
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
         self.lastChangeCount = NSPasteboard.general.changeCount
         if let initial = NSPasteboard.general.string(forType: .string), !initial.isEmpty {
             self.lastSentContent = initial
@@ -111,6 +116,33 @@ public final class ClipboardPlugin: TetherPlugin, @unchecked Sendable {
             NSPasteboard.general.setString(content, forType: .string)
             self.lastChangeCount = NSPasteboard.general.changeCount
             TetherLog("[ClipboardPlugin] Synced clipboard from \(connection.peerDeviceInfo?.deviceName ?? "Device"): \(content.prefix(30))...")
+        }
+
+        if packet.type == "kdeconnect.clipboard" {
+            let shouldNotify = UserDefaults.standard.object(forKey: "TetherNotifyOnClipboardSync") as? Bool ?? true
+            if shouldNotify {
+                let deviceName = connection.peerDeviceInfo?.deviceName ?? "Phone"
+                let preview = content.trimmingCharacters(in: .whitespacesAndNewlines)
+                let displayBody = preview.count > 120 ? "\(preview.prefix(120))…" : preview
+
+                let notif = UNMutableNotificationContent()
+                notif.title = "📋 Clipboard Synced"
+                notif.subtitle = "From \(deviceName)"
+                notif.body = displayBody
+                notif.sound = .default
+                let req = UNNotificationRequest(
+                    identifier: "tether.clipboard.\(UUID().uuidString)",
+                    content: notif,
+                    trigger: nil
+                )
+                UNUserNotificationCenter.current().add(req) { error in
+                    if let error {
+                        TetherLog("[ClipboardPlugin] Error posting notification: \(error)")
+                    } else {
+                        TetherLog("[ClipboardPlugin] Posted clipboard sync notification for \(deviceName)")
+                    }
+                }
+            }
         }
     }
 

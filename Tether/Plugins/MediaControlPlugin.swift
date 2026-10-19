@@ -35,6 +35,19 @@ public struct NowPlaying: Sendable, Equatable {
         let seconds = max(0, position / 1000)
         return String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
+
+    /// Total duration as mm:ss, empty when unknown.
+    public var lengthLabel: String {
+        guard length > 0 else { return "" }
+        let seconds = max(0, length / 1000)
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+
+    /// Playback progress as a 0...1 fraction.
+    public var progressFraction: Double {
+        guard length > 0 else { return 0 }
+        return min(1.0, max(0.0, Double(position) / Double(length)))
+    }
 }
 
 /// Controls the phone's media player (upstream's `mprisremote`).
@@ -166,6 +179,33 @@ public final class MediaControlPlugin: ObservableObject, TetherPlugin, @unchecke
             body["player"] = player
         }
         connection.send(packet: NetworkPacket(type: "kdeconnect.mpris.request", body: body))
+    }
+
+    /// Sets the absolute playback position in milliseconds.
+    public func setPosition(_ positionMs: Int, connection: DeviceConnection) {
+        var body: [String: Any] = ["SetPosition": positionMs]
+        if let player = currentPlayer(connection: connection) {
+            body["player"] = player
+        }
+        connection.send(packet: NetworkPacket(type: "kdeconnect.mpris.request", body: body))
+    }
+
+    /// Selects an active player to request state and control.
+    public func selectPlayer(_ player: String, connection: DeviceConnection) {
+        guard let deviceId = connection.peerDeviceInfo?.deviceId else { return }
+        if var current = nowPlaying[deviceId] {
+            current.player = player
+            nowPlaying[deviceId] = current
+        }
+        let packet = NetworkPacket(
+            type: "kdeconnect.mpris.request",
+            body: [
+                "player": player,
+                "requestNowPlaying": true,
+                "requestVolume": true
+            ]
+        )
+        connection.send(packet: packet)
     }
 
     private func currentPlayer(connection: DeviceConnection) -> String? {

@@ -434,6 +434,16 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
         mediaControlPlugin.sendAction(action, connection: conn)
     }
 
+    public func seekMediaPosition(_ positionMs: Int, deviceId: String) {
+        guard let conn = connectedDevices[deviceId] else { return }
+        mediaControlPlugin.setPosition(positionMs, connection: conn)
+    }
+
+    public func selectMediaPlayer(_ player: String, deviceId: String) {
+        guard let conn = connectedDevices[deviceId] else { return }
+        mediaControlPlugin.selectPlayer(player, connection: conn)
+    }
+
     /// KDE Connect for Android takes volume changes only through its media
     /// controls (`kdeconnect.mpris.request` with `setVolume`), applied to the
     /// active player's stream, so this needs a media app with a session.
@@ -446,6 +456,84 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
         } else if let sink = remoteVolumePlugin.sinks[deviceId]?.first(where: { $0.enabled })
                     ?? remoteVolumePlugin.sinks[deviceId]?.first {
             remoteVolumePlugin.setVolume(sinkName: sink.name, volume: volume, connection: conn)
+        }
+    }
+
+    public func setSinkVolume(sinkName: String, volume: Int, deviceId: String) {
+        guard let conn = connectedDevices[deviceId] else { return }
+        remoteVolumePlugin.setVolume(sinkName: sinkName, volume: volume, connection: conn)
+    }
+
+    public func setSinkMuted(sinkName: String, muted: Bool, deviceId: String) {
+        guard let conn = connectedDevices[deviceId] else { return }
+        remoteVolumePlugin.setMuted(sinkName: sinkName, muted: muted, connection: conn)
+    }
+
+    public func silenceRinger(deviceId: String) {
+        telephonyPlugin.muteRinger(deviceId: deviceId)
+    }
+
+    public func silenceAlarms(deviceId: String) {
+        let activeNotifs = notificationPlugin.notifications[deviceId] ?? []
+        for notif in activeNotifs {
+            let app = notif.appName.lowercased()
+            let title = notif.title.lowercased()
+            let text = notif.text.lowercased()
+            if app.contains("clock") || app.contains("alarm") || title.contains("alarm") || text.contains("alarm") || title.contains("timer") || text.contains("timer") {
+                notificationPlugin.dismiss(notif)
+            }
+        }
+        if let conn = connectedDevices[deviceId] {
+            let sinks = remoteVolumePlugin.sinks[deviceId] ?? []
+            for sink in sinks where sink.name.lowercased().contains("alarm") || sink.description.lowercased().contains("alarm") {
+                remoteVolumePlugin.setMuted(sinkName: sink.name, muted: true, connection: conn)
+                remoteVolumePlugin.setVolume(sinkName: sink.name, volume: 0, connection: conn)
+            }
+        }
+        TetherLog("[TetherService] Silenced alarms for \(deviceId)")
+    }
+
+    public func silencePhone(deviceId: String) {
+        // Silence ringer & incoming calls
+        silenceRinger(deviceId: deviceId)
+
+        // Silence / dismiss any alarms or timers
+        silenceAlarms(deviceId: deviceId)
+
+        // Mute system volume sinks
+        if let conn = connectedDevices[deviceId] {
+            let sinks = remoteVolumePlugin.sinks[deviceId] ?? []
+            for sink in sinks {
+                let name = sink.name.lowercased()
+                let desc = sink.description.lowercased()
+                if name.contains("ring") || desc.contains("ring") || name.contains("alarm") || desc.contains("alarm") || name.contains("notif") || desc.contains("notif") {
+                    remoteVolumePlugin.setMuted(sinkName: sink.name, muted: true, connection: conn)
+                    remoteVolumePlugin.setVolume(sinkName: sink.name, volume: 0, connection: conn)
+                }
+            }
+        }
+        TetherLog("[TetherService] Silenced phone (calls, alarms, notifications) for \(deviceId)")
+    }
+
+    public func unsilencePhone(deviceId: String) {
+        if let conn = connectedDevices[deviceId] {
+            let sinks = remoteVolumePlugin.sinks[deviceId] ?? []
+            for sink in sinks {
+                remoteVolumePlugin.setMuted(sinkName: sink.name, muted: false, connection: conn)
+                if sink.volume == 0 {
+                    let restoreVol = max(1, Int(0.6 * Double(sink.maxVolume)))
+                    remoteVolumePlugin.setVolume(sinkName: sink.name, volume: restoreVol, connection: conn)
+                }
+            }
+        }
+        TetherLog("[TetherService] Unsilenced phone for \(deviceId)")
+    }
+
+    public func setPhoneSilenced(_ silenced: Bool, deviceId: String) {
+        if silenced {
+            silencePhone(deviceId: deviceId)
+        } else {
+            unsilencePhone(deviceId: deviceId)
         }
     }
 

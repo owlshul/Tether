@@ -19,44 +19,28 @@ extension View {
     /// A floating panel: Liquid Glass, or a thick material with a hairline edge.
     @ViewBuilder
     func glassPanel(radius: CGFloat = GlassMetrics.panelRadius) -> some View {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(.regular, in: .rect(cornerRadius: radius, style: .continuous))
-        } else {
-            self
-                .background(.regularMaterial, in: .rect(cornerRadius: radius, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(.separator.opacity(0.6), lineWidth: 0.5))
-        }
+        self
+            .background(.regularMaterial, in: .rect(cornerRadius: radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(.separator.opacity(0.6), lineWidth: 0.5))
     }
 
     /// A text field's capsule: glass on macOS 26, a soft fill before.
     @ViewBuilder
     func glassCapsule() -> some View {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(.regular, in: .capsule)
-        } else {
-            self
-                .background(.quaternary.opacity(0.7), in: .capsule)
-        }
+        self
+            .background(.quaternary.opacity(0.7), in: .capsule)
     }
 
     /// A small text button: glass on macOS 26, bordered before.
     @ViewBuilder
     func glassButton() -> some View {
-        if #available(macOS 26.0, *) {
-            self.buttonStyle(.glass)
-        } else {
-            self.buttonStyle(.bordered)
-        }
+        self.buttonStyle(.bordered)
     }
 
     /// Glass over imagery (the phone card), where the material should stay clear.
     @ViewBuilder
     func clearGlass(in shape: some Shape) -> some View {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(.clear, in: shape)
-        } else {
-            self.background(.ultraThinMaterial, in: shape)
-        }
+        self.background(.ultraThinMaterial, in: shape)
     }
 }
 
@@ -92,23 +76,11 @@ struct GlassCircleButton: View {
             .contentShape(.circle)
             .accessibilityLabel(title)
 
-        if #available(macOS 26.0, *) {
-            if isProminent {
-                Button(action: action) { label }
-                    .buttonStyle(.glassProminent)
-                    .buttonBorderShape(.circle)
-            } else {
-                Button(action: action) { label }
-                    .buttonStyle(.glass)
-                    .buttonBorderShape(.circle)
-            }
-        } else {
-            Button(action: action) { label }
-                .buttonStyle(.plain)
-                .foregroundStyle(isProminent ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
-                .background(isProminent ? AnyShapeStyle(.tint) : AnyShapeStyle(.regularMaterial), in: .circle)
-                .overlay(Circle().strokeBorder(.separator.opacity(0.6), lineWidth: 0.5))
-        }
+        Button(action: action) { label }
+            .buttonStyle(.plain)
+            .foregroundStyle(isProminent ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+            .background(isProminent ? AnyShapeStyle(.tint) : AnyShapeStyle(.regularMaterial), in: .circle)
+            .overlay(Circle().strokeBorder(.separator.opacity(0.6), lineWidth: 0.5))
     }
 }
 

@@ -17,6 +17,7 @@ struct TetherApp: App {
         if ProcessInfo.processInfo.arguments.contains("-TetherDemoData") {
             _appModel = State(initialValue: .mock())
             PhoneFilesController.shared.showDemoDrive(for: "mock_phone")
+            MenuBarQuickActionsController.shared.start(with: _appModel.wrappedValue)
             if ProcessInfo.processInfo.arguments.contains("-TetherDemoRinging") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                     MacRinger.shared.showDemoPanel(deviceName: "Pixel 9 Pro")
@@ -43,6 +44,8 @@ struct TetherApp: App {
         UpdateController.shared.start()
         // Serve the phone's storage to Finder
         PhoneFilesController.shared.start()
+        // Start menu bar quick action icons
+        MenuBarQuickActionsController.shared.start(with: _appModel.wrappedValue)
     }
 
     /// Demo data opens the main window at `-TetherDemoSection <section>`

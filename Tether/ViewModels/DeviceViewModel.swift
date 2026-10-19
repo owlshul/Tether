@@ -36,6 +36,14 @@ public final class DeviceViewModel: Identifiable, Hashable {
     public var nowPlayingArtist: String?
     public var nowPlayingAlbum: String?
     public var nowPlayingIsPlaying: Bool
+    public var nowPlayingPlayer: String?
+    public var nowPlayingLength: Int = 0
+    public var nowPlayingPosition: Int = 0
+    public var nowPlayingCanSeek: Bool = false
+    public var nowPlayingCanGoPrevious: Bool = true
+    public var nowPlayingCanGoNext: Bool = true
+    public var availablePlayers: [String] = []
+    public var audioSinks: [AudioSink] = []
     /// Decoded once when the bytes change, never in a view body.
     public private(set) var albumArt: NSImage?
     @ObservationIgnored private var albumArtData: Data?
@@ -58,12 +66,32 @@ public final class DeviceViewModel: Identifiable, Hashable {
     /// Connected through Tailscale rather than the local network.
     public var isViaTailscale = false
 
+    /// Incoming call ringing state and caller description.
+    public var isRinging = false
+    public var callerName: String? = nil
+    public var isSilenced = false
+    public var preSilenceVolume: Float? = nil
+
+    /// Active alarm notification if an alarm or timer is ringing.
+    public var activeAlarmNotification: PhoneNotification? {
+        notifications.first { notif in
+            let app = notif.appName.lowercased()
+            let title = notif.title.lowercased()
+            let text = notif.text.lowercased()
+            return app.contains("clock") || app.contains("alarm") || title.contains("alarm") || text.contains("alarm") || title.contains("timer") || text.contains("timer")
+        }
+    }
+
     // Action handlers injected by TetherAppModel or mocked
     public var onPing: (() -> Void)?
     public var onSendClipboard: (() -> Void)?
     public var onSendFiles: (([URL]) -> Void)?
     public var onFindPhone: (() -> Void)?
     public var onLockDevice: (() -> Void)?
+    public var onSilenceRinger: (() -> Void)?
+    public var onSilenceAlarms: (() -> Void)?
+    public var onSilencePhone: (() -> Void)?
+    public var onToggleSilence: ((Bool) -> Void)?
     public var onPair: (() -> Void)?
     public var onUnpair: (() -> Void)?
     public var onExecuteCommand: ((String) -> Void)?
@@ -75,6 +103,10 @@ public final class DeviceViewModel: Identifiable, Hashable {
     public var onLoadEarlierMessages: ((Int64) -> Void)?
     public var onSetVolume: ((Float) -> Void)?
     public var onMediaAction: ((String) -> Void)?
+    public var onSeekPosition: ((Int) -> Void)?
+    public var onSelectPlayer: ((String) -> Void)?
+    public var onSetSinkVolume: ((String, Int) -> Void)?
+    public var onSetSinkMuted: ((String, Bool) -> Void)?
     public var onReplyToNotification: ((PhoneNotification, String) -> Void)?
     public var onDismissNotification: ((PhoneNotification) -> Void)?
 
@@ -167,6 +199,16 @@ public final class DeviceViewModel: Identifiable, Hashable {
     public func sendFiles(_ urls: [URL]) { onSendFiles?(urls) }
     public func findMyPhone() { onFindPhone?() }
     public func lockDevice() { onLockDevice?() }
+    public func silenceRinger() { onSilenceRinger?() }
+    public func silenceAlarms() { onSilenceAlarms?() }
+    public func silencePhone() {
+        isSilenced = true
+        onSilencePhone?()
+    }
+    public func toggleSilence() {
+        isSilenced.toggle()
+        onToggleSilence?(isSilenced)
+    }
     public func pair() {
         isAwaitingPairing = true
         onPair?()
@@ -197,6 +239,38 @@ public final class DeviceViewModel: Identifiable, Hashable {
     public func playPauseMedia() { onMediaAction?("PlayPause") }
     public func nextMedia() { onMediaAction?("Next") }
     public func previousMedia() { onMediaAction?("Previous") }
+    public func seekPosition(_ positionMs: Int) {
+        nowPlayingPosition = positionMs
+        onSeekPosition?(positionMs)
+    }
+    public func selectPlayer(_ player: String) {
+        nowPlayingPlayer = player
+        onSelectPlayer?(player)
+    }
+    public func setSinkVolume(name: String, volume: Int) {
+        onSetSinkVolume?(name, volume)
+    }
+    public func setSinkMuted(name: String, muted: Bool) {
+        onSetSinkMuted?(name, muted)
+    }
+
+    public var nowPlayingElapsedLabel: String {
+        guard nowPlayingLength > 0 else { return "" }
+        let seconds = max(0, nowPlayingPosition / 1000)
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+
+    public var nowPlayingLengthLabel: String {
+        guard nowPlayingLength > 0 else { return "" }
+        let seconds = max(0, nowPlayingLength / 1000)
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+
+    public var nowPlayingProgressFraction: Double {
+        guard nowPlayingLength > 0 else { return 0 }
+        return min(1.0, max(0.0, Double(nowPlayingPosition) / Double(nowPlayingLength)))
+    }
+
     public func reply(to notification: PhoneNotification, text: String) { onReplyToNotification?(notification, text) }
     public func dismiss(_ notification: PhoneNotification) { onDismissNotification?(notification) }
 }

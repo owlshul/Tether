@@ -121,7 +121,8 @@ public final class TetherAppModel {
             service.mediaControlPlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             service.remoteVolumePlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             service.notificationPlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
-            service.contactsPlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher()
+            service.contactsPlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            service.telephonyPlugin.objectWillChange.map { _ in () }.eraseToAnyPublisher()
         ]
         // objectWillChange fires before the value lands; hop a runloop turn and
         // coalesce bursts (a single SMS sync can publish hundreds of times).
@@ -211,6 +212,7 @@ public final class TetherAppModel {
             paired: trustStore.pairedDevices.mapValues(\.deviceName),
             connected: connectedIds
         )
+        MenuBarQuickActionsController.shared.update(appModel: self)
 
         if selectedDeviceId == nil || !allDevices.contains(where: { $0.id == selectedDeviceId }) {
             selectedDeviceId = connectedDevices.first?.id ?? offlineDevices.first?.id ?? availableDevices.first?.id
@@ -230,6 +232,10 @@ public final class TetherAppModel {
         vm.onSendFiles = { urls in service.sendFiles(urls, to: deviceId) }
         vm.onFindPhone = { service.ringPhone(deviceId) }
         vm.onLockDevice = { service.lockPhone(deviceId) }
+        vm.onSilenceRinger = { service.silenceRinger(deviceId: deviceId) }
+        vm.onSilenceAlarms = { service.silenceAlarms(deviceId: deviceId) }
+        vm.onSilencePhone = { service.silencePhone(deviceId: deviceId) }
+        vm.onToggleSilence = { silenced in service.setPhoneSilenced(silenced, deviceId: deviceId) }
         let canLock = connection.peerDeviceInfo?.incomingCapabilities.contains("kdeconnect.lock.request") ?? false
         if vm.canLock != canLock { vm.canLock = canLock }
         // Tailscale addresses are in 100.64.0.0/10.
@@ -271,6 +277,10 @@ public final class TetherAppModel {
         }
         vm.onSetVolume = { val in service.setPhoneVolume(Int(val * 100), deviceId: deviceId) }
         vm.onMediaAction = { action in service.mediaAction(action, deviceId: deviceId) }
+        vm.onSeekPosition = { pos in service.seekMediaPosition(pos, deviceId: deviceId) }
+        vm.onSelectPlayer = { player in service.selectMediaPlayer(player, deviceId: deviceId) }
+        vm.onSetSinkVolume = { name, vol in service.setSinkVolume(sinkName: name, volume: vol, deviceId: deviceId) }
+        vm.onSetSinkMuted = { name, muted in service.setSinkMuted(sinkName: name, muted: muted, deviceId: deviceId) }
         vm.onReplyToNotification = { notification, text in
             service.notificationPlugin.reply(to: notification, text: text)
         }
@@ -301,27 +311,41 @@ public final class TetherAppModel {
             update(dev, \.contacts, service.contactsPlugin.books[id] ?? ContactBook())
             update(dev, \.commands, service.runCommandPlugin.commands)
             update(dev, \.notifications, service.notificationPlugin.notifications[id] ?? [])
+            let caller = service.telephonyPlugin.ringingCalls[id]
+            update(dev, \.isRinging, caller != nil)
+            update(dev, \.callerName, caller)
 
             let nowPlaying = service.mediaControlPlugin.nowPlaying[id]
             update(dev, \.nowPlayingTitle, nowPlaying?.title)
             update(dev, \.nowPlayingArtist, nowPlaying?.artist)
             update(dev, \.nowPlayingAlbum, nowPlaying?.album)
             update(dev, \.nowPlayingIsPlaying, nowPlaying?.isPlaying ?? false)
+            update(dev, \.nowPlayingPlayer, nowPlaying?.player)
+            update(dev, \.nowPlayingLength, nowPlaying?.length ?? 0)
+            update(dev, \.nowPlayingPosition, nowPlaying?.position ?? 0)
+            update(dev, \.nowPlayingCanSeek, nowPlaying?.canSeek ?? false)
+            update(dev, \.nowPlayingCanGoPrevious, nowPlaying?.canGoPrevious ?? true)
+            update(dev, \.nowPlayingCanGoNext, nowPlaying?.canGoNext ?? true)
+            update(dev, \.availablePlayers, service.mediaControlPlugin.players[id] ?? [])
             dev.setAlbumArt(service.mediaControlPlugin.albumArt[id])
+
+            // Sinks for system volume (ringtone, alarm, media, notification, etc.)
+            let sinks = service.remoteVolumePlugin.sinks[id] ?? []
+            update(dev, \.audioSinks, sinks)
 
             // Same order as TetherService.setPhoneVolume: the media player's
             // volume on a phone, a sink's on a desktop.
             let hasPlayer = !(service.mediaControlPlugin.players[id] ?? []).isEmpty
-            let sinks = service.remoteVolumePlugin.sinks[id]
             if hasPlayer, let nowPlaying {
                 update(dev, \.volume, Float(nowPlaying.volume) / 100)
                 update(dev, \.isMuted, false)
-            } else if let sink = sinks?.first(where: { $0.enabled }) ?? sinks?.first {
+            } else if let sink = sinks.first(where: { $0.enabled }) ?? sinks.first {
                 update(dev, \.volume, Float(sink.fraction))
                 update(dev, \.isMuted, sink.muted)
             }
-            update(dev, \.canSetVolume, hasPlayer || !(sinks ?? []).isEmpty)
+            update(dev, \.canSetVolume, hasPlayer || !sinks.isEmpty)
         }
+        MenuBarQuickActionsController.shared.update(appModel: self)
     }
 
     private func update<Value: Equatable>(_ device: DeviceViewModel, _ keyPath: ReferenceWritableKeyPath<DeviceViewModel, Value>, _ value: Value) {
@@ -329,6 +353,10 @@ public final class TetherAppModel {
     }
 
     // MARK: - Actions
+
+    public func refreshRemoteState(deviceId: String) {
+        TetherService.shared.refreshRemoteState(deviceId: deviceId)
+    }
 
     public func acceptIncomingPairRequest() {
         TetherService.shared.acceptIncomingPairRequest()

@@ -12,17 +12,25 @@ import UserNotifications
 /// `missedCall`, `talking` or `sms`, plus `phoneNumber`, and `contactName` and
 /// a JPEG `phoneThumbnail` when the phone knows the caller. `isCancel` marks a
 /// previously announced event as no longer relevant.
-public final class TelephonyPlugin: TetherPlugin, @unchecked Sendable {
+public final class TelephonyPlugin: ObservableObject, TetherPlugin, @unchecked Sendable {
     static let requestMuteType = "kdeconnect.telephony.request_mute"
     static let callCategory = "TETHER_CALL_CATEGORY"
     static let muteAction = "TETHER_MUTE_RINGER_ACTION"
 
     public let supportedPacketTypes = ["kdeconnect.telephony"]
 
+    @Published public private(set) var ringingCalls: [String: String] = [:]
+
     public init() {}
 
     public func onConnected(connection: DeviceConnection) {}
-    public func onDisconnected(connection: DeviceConnection) {}
+    public func onDisconnected(connection: DeviceConnection) {
+        if let id = connection.peerDeviceInfo?.deviceId {
+            DispatchQueue.main.async {
+                self.ringingCalls.removeValue(forKey: id)
+            }
+        }
+    }
 
     public func handlePacket(connection: DeviceConnection, packet: NetworkPacket) {
         guard packet.type == "kdeconnect.telephony",
@@ -37,6 +45,9 @@ public final class TelephonyPlugin: TetherPlugin, @unchecked Sendable {
             UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [identifier])
             if isCall {
                 Task { @MainActor in CallMediaPauser.shared.callEnded("\(deviceId)/\(event)") }
+                DispatchQueue.main.async {
+                    self.ringingCalls.removeValue(forKey: deviceId)
+                }
             }
             return
         }
@@ -63,14 +74,23 @@ public final class TelephonyPlugin: TetherPlugin, @unchecked Sendable {
             content.interruptionLevel = .timeSensitive
             content.categoryIdentifier = Self.callCategory
             content.userInfo = ["deviceId": deviceId]
+            DispatchQueue.main.async {
+                self.ringingCalls[deviceId] = who
+            }
         case "missedCall":
             content.title = who
             content.subtitle = "Missed call"
             if name != nil, let number { content.body = number }
             content.sound = .default
+            DispatchQueue.main.async {
+                self.ringingCalls.removeValue(forKey: deviceId)
+            }
         case "talking":
             content.title = who
             content.subtitle = "Call in progress"
+            DispatchQueue.main.async {
+                self.ringingCalls.removeValue(forKey: deviceId)
+            }
         case "sms":
             content.title = "Message from \(who)"
             content.body = packet.string(for: "messageBody") ?? ""
@@ -90,8 +110,15 @@ public final class TelephonyPlugin: TetherPlugin, @unchecked Sendable {
         }
     }
 
+    public func muteRinger(deviceId: String) {
+        Self.muteRinger(deviceId: deviceId)
+        DispatchQueue.main.async {
+            self.ringingCalls.removeValue(forKey: deviceId)
+        }
+    }
+
     /// Asks the phone to silence its ringer, from the incoming-call notification.
-    static func muteRinger(deviceId: String) {
+    public static func muteRinger(deviceId: String) {
         guard let connection = TetherService.shared.connection(for: deviceId) else { return }
         connection.send(packet: NetworkPacket(type: requestMuteType))
         TetherLog("[TelephonyPlugin] Asked the phone to mute its ringer")

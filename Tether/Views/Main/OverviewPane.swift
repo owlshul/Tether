@@ -58,6 +58,13 @@ struct OverviewPane: View {
 
             HStack(spacing: 22) {
                 GlassCircleButton(title: "Find", systemImage: "speaker.wave.3.fill") { device.findMyPhone() }
+                GlassCircleButton(
+                    title: device.isSilenced ? "Unsilence" : "Silence",
+                    systemImage: device.isSilenced ? "bell.slash.fill" : "bell.fill",
+                    isProminent: device.isSilenced
+                ) {
+                    device.toggleSilence()
+                }
                 GlassCircleButton(title: "Clipboard", systemImage: "doc.on.clipboard") { device.sendClipboard() }
                 GlassCircleButton(title: "Send Files", systemImage: "arrow.up.doc") {
                     device.sendFiles(FilePicker.chooseFiles(sendingTo: device.name))
@@ -135,10 +142,50 @@ private struct NowPlayingPanel: View {
     @Bindable var device: DeviceViewModel
     @State private var draftVolume: Float = 0.5
     @State private var isEditingVolume = false
+    @State private var scrubFraction: Double = 0
+    @State private var isScrubbing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            PanelHeader("Now Playing")
+            HStack {
+                PanelHeader("Now Playing")
+                Spacer()
+                if device.availablePlayers.count > 1 {
+                    Menu {
+                        ForEach(device.availablePlayers, id: \.self) { player in
+                            Button {
+                                device.selectPlayer(player)
+                            } label: {
+                                if player == device.nowPlayingPlayer {
+                                    Label(player, systemImage: "checkmark")
+                                } else {
+                                    Text(player)
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "hifispeaker.fill").font(.system(size: 10))
+                            Text(device.nowPlayingPlayer ?? "Player")
+                                .font(.caption.weight(.medium))
+                            Image(systemName: "chevron.up.chevron.down").font(.system(size: 8, weight: .bold))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(.quaternary, in: .capsule)
+                    }
+                    .menuStyle(.button)
+                    .buttonStyle(.plain)
+                } else if let player = device.nowPlayingPlayer, !player.isEmpty {
+                    Text(player)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(.quaternary, in: .capsule)
+                }
+            }
+
             VStack(spacing: 14) {
                 HStack(spacing: 14) {
                     artwork
@@ -155,6 +202,7 @@ private struct NowPlayingPanel: View {
                     Spacer(minLength: 8)
                     HStack(spacing: 18) {
                         Button("Previous", systemImage: "backward.fill") { device.previousMedia() }
+                            .disabled(!device.nowPlayingCanGoPrevious)
                         Button(device.nowPlayingIsPlaying ? "Pause" : "Play",
                                systemImage: device.nowPlayingIsPlaying ? "pause.fill" : "play.fill") {
                             device.playPauseMedia()
@@ -162,10 +210,35 @@ private struct NowPlayingPanel: View {
                         .font(.title2)
                         .contentTransition(.symbolEffect(.replace))
                         Button("Next", systemImage: "forward.fill") { device.nextMedia() }
+                            .disabled(!device.nowPlayingCanGoNext)
                     }
                     .labelStyle(.iconOnly)
                     .buttonStyle(.borderless)
                     .font(.title3)
+                }
+
+                if device.nowPlayingLength > 0 {
+                    VStack(spacing: 3) {
+                        Slider(value: Binding(
+                            get: { isScrubbing ? scrubFraction : device.nowPlayingProgressFraction },
+                            set: { scrubFraction = $0 }
+                        ), in: 0...1) { editing in
+                            isScrubbing = editing
+                            if !editing {
+                                let targetMs = Int(scrubFraction * Double(device.nowPlayingLength))
+                                device.seekPosition(targetMs)
+                            }
+                        }
+                        .controlSize(.mini)
+
+                        HStack {
+                            Text(isScrubbing ? formatTime(Int(scrubFraction * Double(device.nowPlayingLength))) : device.nowPlayingElapsedLabel)
+                            Spacer()
+                            Text(device.nowPlayingLengthLabel)
+                        }
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    }
                 }
 
                 HStack(spacing: 10) {
@@ -193,6 +266,11 @@ private struct NowPlayingPanel: View {
     private var subtitle: String? {
         let parts = [device.nowPlayingArtist, device.nowPlayingAlbum].compactMap { $0?.isEmpty == false ? $0 : nil }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private func formatTime(_ ms: Int) -> String {
+        let seconds = max(0, ms / 1000)
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 
     @ViewBuilder

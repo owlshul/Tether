@@ -28,6 +28,7 @@ public final class BatteryPlugin: ObservableObject, TetherPlugin, @unchecked Sen
     public func onConnected(connection: DeviceConnection) {}
     public func onDisconnected(connection: DeviceConnection) {
         if let id = connection.peerDeviceInfo?.deviceId {
+            BatteryAlertManager.shared.reset(for: id)
             DispatchQueue.main.async {
                 if !TetherService.shared.isDeviceConnected(deviceId: id) {
                     self.deviceBatteries.removeValue(forKey: id)
@@ -47,6 +48,15 @@ public final class BatteryPlugin: ObservableObject, TetherPlugin, @unchecked Sen
         let threshold = packet.int(for: "thresholdBatteryEvent", default: 0)
 
         guard charge >= 0 else { return }
+
+        let deviceName = connection.peerDeviceInfo?.deviceName ?? "Phone"
+        BatteryAlertManager.shared.evaluate(
+            deviceId: deviceId,
+            deviceName: deviceName,
+            charge: charge,
+            isCharging: isCharging,
+            thresholdEvent: threshold
+        )
 
         let info = DeviceBatteryInfo(
             currentCharge: charge,
