@@ -64,12 +64,15 @@ struct TetherApp: App {
             MenuBarView(appModel: appModel)
                 .tetherMotionPreference()
         } label: {
-            if let title = appModel.statusMenuBarTitle, let icon = appModel.statusMenuBarSystemImage {
-                Label(title, systemImage: icon)
-            } else if let icon = appModel.statusMenuBarSystemImage {
-                Label("Tether", systemImage: icon)
-            } else {
-                Image(appModel.statusMenuBarImageName)
+            HStack(spacing: 3) {
+                if let icon = appModel.statusMenuBarSystemImage {
+                    Image(systemName: icon)
+                } else {
+                    Image(appModel.statusMenuBarImageName)
+                }
+                if let title = appModel.statusMenuBarTitle {
+                    Text(title)
+                }
             }
         }
         .menuBarExtraStyle(.window)

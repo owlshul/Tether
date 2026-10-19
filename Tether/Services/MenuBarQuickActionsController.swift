@@ -44,7 +44,7 @@ public final class MenuBarQuickActionsController: NSObject {
     private var findPhoneItem: NSStatusItem?
     private var clipboardItem: NSStatusItem?
     private var sendFilesItem: NSStatusItem?
-
+    private var primaryStatusItem: NSStatusItem?
     private var isStarted = false
 
     private override init() {
@@ -70,6 +70,7 @@ public final class MenuBarQuickActionsController: NSObject {
         if NSApp != nil && NSApp.isRunning {
             setupStatusItems()
             updateItems()
+            schedulePrimaryRetries()
         } else {
             NotificationCenter.default.publisher(for: NSApplication.didFinishLaunchingNotification)
                 .first()
@@ -77,8 +78,17 @@ public final class MenuBarQuickActionsController: NSObject {
                 .sink { [weak self] _ in
                     self?.setupStatusItems()
                     self?.updateItems()
+                    self?.schedulePrimaryRetries()
                 }
                 .store(in: &cancellables)
+        }
+    }
+
+    private func schedulePrimaryRetries() {
+        for delay in [0.05, 0.15, 0.35, 0.75, 1.5, 3.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.updatePrimaryStatusItem()
+            }
         }
     }
 
@@ -167,6 +177,8 @@ public final class MenuBarQuickActionsController: NSObject {
     public func updateItems() {
         guard isStarted else { return }
 
+        updatePrimaryStatusItem()
+
         let defaults = UserDefaults.standard
         let quickActionsEnabled = defaults.bool(forKey: MenuBarQuickActionsSettings.showQuickActionsKey)
         let showSilence = defaults.bool(forKey: MenuBarQuickActionsSettings.showSilencePhoneKey)
@@ -220,6 +232,56 @@ public final class MenuBarQuickActionsController: NSObject {
         // Send Files
         sendFilesItem?.isVisible = showSend
         sendFilesItem?.button?.toolTip = "Send Files to \(name)"
+    }
+
+    private func findPrimaryStatusItem() -> NSStatusItem? {
+        if let primary = primaryStatusItem { return primary }
+        let known: Set<NSStatusItem> = Set([silenceItem, mediaItem, findPhoneItem, clipboardItem, sendFilesItem].compactMap { $0 })
+        guard let ivar = class_getInstanceVariable(NSStatusBar.self, "_items"),
+              let pointerArray = object_getIvar(NSStatusBar.system, ivar) as? NSPointerArray else {
+            return nil
+        }
+        for i in 0..<pointerArray.count {
+            if let ptr = pointerArray.pointer(at: i) {
+                let item = Unmanaged<NSStatusItem>.fromOpaque(ptr).takeUnretainedValue()
+                if !known.contains(item) && item.button != nil {
+                    primaryStatusItem = item
+                    return item
+                }
+            }
+        }
+        return nil
+    }
+
+    public func updatePrimaryStatusItem() {
+        guard let item = findPrimaryStatusItem(), let button = item.button else { return }
+
+        guard let device = appModel?.primaryDevice else {
+            button.image = NSImage(named: "MenuBarDisconnected")
+            button.title = ""
+            button.imagePosition = .imageOnly
+            button.toolTip = "Tether (Disconnected)"
+            return
+        }
+
+        let isTablet = device.deviceType == .tablet
+        let symbolName = isTablet ? "ipad" : "iphone"
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+        let img = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Tether")?.withSymbolConfiguration(config)
+        img?.isTemplate = true
+        button.image = img
+
+        if let percent = device.batteryPercent {
+            let prefix = device.isCharging ? "⚡️" : ""
+            button.title = "\(prefix)\(percent)%"
+            button.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+            button.imagePosition = .imageLeading
+            button.toolTip = "\(device.name) (\(percent)%\(device.isCharging ? ", Charging" : ""))"
+        } else {
+            button.title = ""
+            button.imagePosition = .imageOnly
+            button.toolTip = "\(device.name)"
+        }
     }
 
     // MARK: - Actions

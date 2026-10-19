@@ -80,9 +80,6 @@ public final class TetherAppModel {
 
     public var statusMenuBarSystemImage: String? {
         if let device = primaryDevice {
-            if device.isCharging {
-                return "iphone.badge.bolt"
-            }
             return device.deviceType == .tablet ? "ipad" : "iphone"
         }
         return nil
