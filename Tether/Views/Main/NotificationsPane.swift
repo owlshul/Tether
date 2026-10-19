@@ -62,7 +62,20 @@ private struct NotificationRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .center) {
+                if let data = notification.imageData, let image = NSImage(data: data) {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 32, height: 32)
+                        .clipShape(.rect(cornerRadius: 6))
+                        .accessibilityLabel("Image from \(notification.appName)")
+                } else {
+                    Image(systemName: "app.dashed")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 32, height: 32)
+                        .accessibilityHidden(true)
+                }
                 Text(notification.title.isEmpty ? notification.appName : notification.title)
                     .fontWeight(.semibold)
                     .lineLimit(1)
