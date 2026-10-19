@@ -44,7 +44,6 @@ public final class MenuBarQuickActionsController: NSObject {
     private var findPhoneItem: NSStatusItem?
     private var clipboardItem: NSStatusItem?
     private var sendFilesItem: NSStatusItem?
-    private var batteryItem: NSStatusItem?
 
     private var isStarted = false
 
@@ -89,16 +88,6 @@ public final class MenuBarQuickActionsController: NSObject {
     }
 
     private func setupStatusItems() {
-        // Battery item (optional)
-        let battery = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        battery.autosaveName = "com.subhashh.tether.action.battery"
-        if let button = battery.button {
-            button.target = self
-            button.action = #selector(handleBatteryClick(_:))
-            button.sendAction(on: [.leftMouseUp])
-        }
-        self.batteryItem = battery
-
         // Silence Phone item
         let silence = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         silence.autosaveName = "com.subhashh.tether.action.silence"
@@ -185,7 +174,6 @@ public final class MenuBarQuickActionsController: NSObject {
         let showFind = defaults.bool(forKey: MenuBarQuickActionsSettings.showFindPhoneKey)
         let showClip = defaults.bool(forKey: MenuBarQuickActionsSettings.showClipboardKey)
         let showSend = defaults.bool(forKey: MenuBarQuickActionsSettings.showSendFilesKey)
-        let showBat = defaults.bool(forKey: MenuBarQuickActionsSettings.showBatteryKey)
 
         guard let device = appModel?.primaryDevice, quickActionsEnabled else {
             silenceItem?.isVisible = false
@@ -193,7 +181,6 @@ public final class MenuBarQuickActionsController: NSObject {
             findPhoneItem?.isVisible = false
             clipboardItem?.isVisible = false
             sendFilesItem?.isVisible = false
-            batteryItem?.isVisible = false
             return
         }
 
@@ -233,30 +220,6 @@ public final class MenuBarQuickActionsController: NSObject {
         // Send Files
         sendFilesItem?.isVisible = showSend
         sendFilesItem?.button?.toolTip = "Send Files to \(name)"
-
-        // Battery with mobile phone icon
-        if showBat, let percent = device.batteryPercent {
-            batteryItem?.isVisible = true
-            let iconName: String
-            if device.isCharging {
-                if NSImage(systemSymbolName: "iphone.badge.bolt", accessibilityDescription: nil) != nil {
-                    iconName = "iphone.badge.bolt"
-                } else {
-                    iconName = device.deviceType == .tablet ? "ipad" : "iphone"
-                }
-            } else {
-                iconName = device.deviceType == .tablet ? "ipad" : "iphone"
-            }
-            let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
-            let img = NSImage(systemSymbolName: iconName, accessibilityDescription: "Phone Battery")?.withSymbolConfiguration(config)
-            img?.isTemplate = true
-            batteryItem?.button?.image = img
-            batteryItem?.button?.imagePosition = .imageLeading
-            batteryItem?.button?.title = device.isCharging ? "⚡️\(percent)%" : "\(percent)%"
-            batteryItem?.button?.toolTip = "\(name): \(percent)%\(device.isCharging ? " (Charging)" : "")"
-        } else {
-            batteryItem?.isVisible = false
-        }
     }
 
     // MARK: - Actions
@@ -290,10 +253,5 @@ public final class MenuBarQuickActionsController: NSObject {
         if !files.isEmpty {
             device.sendFiles(files)
         }
-    }
-
-    @objc private func handleBatteryClick(_ sender: Any?) {
-        guard let device = appModel?.primaryDevice else { return }
-        device.ping()
     }
 }

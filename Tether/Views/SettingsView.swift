@@ -283,12 +283,11 @@ private struct GeneralSettings: View {
                     Toggle("Find phone icon", isOn: $showFindPhone)
                     Toggle("Send clipboard icon", isOn: $showClipboard)
                     Toggle("Send files icon", isOn: $showSendFiles)
-                    Toggle("Phone battery (mobile icon)", isOn: $showBattery)
                 }
             } header: {
                 Text("Menu Bar Quick Actions")
             } footer: {
-                Text("Adds clickable icons directly to the macOS top bar next to Tether. The phone battery icon displays a mobile phone with charge level to distinguish it from your Mac battery.")
+                Text("The main menu bar icon displays your phone and battery percentage to open Tether. These additional icons provide instant top-bar access to Silence, Music, Find Phone, Send Clipboard, and Send Files.")
                     .foregroundStyle(.secondary)
             }
 

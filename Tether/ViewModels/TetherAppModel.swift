@@ -71,6 +71,23 @@ public final class TetherAppModel {
         connectedDevices.isEmpty ? "MenuBarDisconnected" : "MenuBarConnected"
     }
 
+    public var statusMenuBarTitle: String? {
+        if let device = primaryDevice, let percent = device.batteryPercent {
+            return device.isCharging ? "⚡️\(percent)%" : "\(percent)%"
+        }
+        return nil
+    }
+
+    public var statusMenuBarSystemImage: String? {
+        if let device = primaryDevice {
+            if device.isCharging {
+                return "iphone.badge.bolt"
+            }
+            return device.deviceType == .tablet ? "ipad" : "iphone"
+        }
+        return nil
+    }
+
     public init(isMock: Bool = false) {
         self.isMockMode = isMock
         if !isMock {
