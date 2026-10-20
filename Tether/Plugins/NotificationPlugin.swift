@@ -234,11 +234,13 @@ public final class NotificationPlugin: NSObject, ObservableObject, TetherPlugin,
         notifications[deviceId] = list
 
         let key = NotificationImageTracker.Key(deviceId: deviceId, notificationId: notifId)
-        let waitForImage = !silent && item.imageData == nil && Self.expectsImage(packet)
+        let suppressNativeDuplicate = NativeNotificationFilter.shouldSuppress(item)
+        let waitForImage = !silent && !suppressNativeDuplicate && item.imageData == nil && Self.expectsImage(packet)
         let token = imageTracker.begin(key, packetId: packet.id, hash: packet.string(for: "payloadHash"), waiting: waitForImage)
 
         // Silent initial sync still populates the list and image cache.
-        if silent { return }
+        // Also keep mirrored WhatsApp items without duplicating native alerts.
+        if silent || suppressNativeDuplicate { return }
 
         if let code = item.code, UserDefaults.standard.bool(forKey: OneTimeCode.autoCopyKey) {
             Self.copyToPasteboard(code)
@@ -311,6 +313,8 @@ public final class NotificationPlugin: NSObject, ObservableObject, TetherPlugin,
     }
 
     private func post(_ item: PhoneNotification) {
+        // Recheck after an image wait: WhatsApp may have launched meanwhile.
+        guard !NativeNotificationFilter.shouldSuppress(item) else { return }
         let content = UNMutableNotificationContent()
         content.title = item.title.isEmpty ? item.appName : "\(item.appName): \(item.title)"
         content.body = item.text
@@ -345,14 +349,16 @@ public final class NotificationPlugin: NSObject, ObservableObject, TetherPlugin,
             defer { prepared?.removeSource() }
             guard let self, self.imageTracker.currentToken(for: key) == token,
                   self.notifications[item.deviceId]?.contains(where: { $0.id == item.id }) == true,
-                  TrustStore.shared.pairedDevice(for: item.deviceId)?.isNotificationSyncEnabled == true else { return }
+                  TrustStore.shared.pairedDevice(for: item.deviceId)?.isNotificationSyncEnabled == true,
+                  !NativeNotificationFilter.shouldSuppress(item) else { return }
             do {
                 try await UNUserNotificationCenter.current().add(request)
             } catch {
                 TetherLog("[NotificationPlugin] Failed to display notification: \(error)")
                 guard prepared != nil, self.imageTracker.currentToken(for: key) == token,
                       self.notifications[item.deviceId]?.contains(where: { $0.id == item.id }) == true,
-                      TrustStore.shared.pairedDevice(for: item.deviceId)?.isNotificationSyncEnabled == true else { return }
+                      TrustStore.shared.pairedDevice(for: item.deviceId)?.isNotificationSyncEnabled == true,
+                      !NativeNotificationFilter.shouldSuppress(item) else { return }
                 // A rejected attachment must not suppress the text notification.
                 content.attachments = []
                 let fallback = UNNotificationRequest(identifier: request.identifier, content: content, trigger: nil)
