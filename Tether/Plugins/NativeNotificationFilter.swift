@@ -1,12 +1,23 @@
 import AppKit
+import UserNotifications
 
 /// Let the native WhatsApp app deliver its own alerts while it is running,
 /// including when hidden or minimized. The mirrored list remains available.
 enum NativeNotificationFilter {
+    static let whatsAppBundleIdentifier = "net.whatsapp.WhatsApp"
+
     static func shouldSuppress(_ item: PhoneNotification) -> Bool {
         guard isWhatsApp(appName: item.appName, notificationId: item.id) else { return false }
-        return NSRunningApplication.runningApplications(withBundleIdentifier: "net.whatsapp.WhatsApp")
+        return NSRunningApplication.runningApplications(withBundleIdentifier: whatsAppBundleIdentifier)
             .contains { !$0.isTerminated }
+    }
+
+    /// Only a click on the notification body opens the native app. Reply,
+    /// dismiss and code-copy buttons retain their original behavior.
+    static func applicationForDefaultAction(_ action: String, appName: String, notificationId: String) -> String? {
+        guard action == UNNotificationDefaultActionIdentifier,
+              isWhatsApp(appName: appName, notificationId: notificationId) else { return nil }
+        return whatsAppBundleIdentifier
     }
 
     static func isWhatsApp(appName: String, notificationId: String) -> Bool {

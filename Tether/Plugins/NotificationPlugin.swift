@@ -323,6 +323,7 @@ public final class NotificationPlugin: NSObject, ObservableObject, TetherPlugin,
         content.userInfo = [
             "deviceId": item.deviceId,
             "notifId": item.id,
+            "appName": item.appName,
             "replyId": item.replyId ?? "",
             "code": item.code ?? ""
         ]
@@ -420,6 +421,30 @@ public final class NotificationPlugin: NSObject, ObservableObject, TetherPlugin,
                 Self.copyToPasteboard(code)
             }
             completionHandler()
+            return
+        }
+
+        // Opening the Mac app is a local action, so it also works if the
+        // phone has disconnected since this notification was delivered.
+        if let id = userInfo["notifId"] as? String,
+           let bundleIdentifier = NativeNotificationFilter.applicationForDefaultAction(
+               response.actionIdentifier,
+               appName: userInfo["appName"] as? String ?? "",
+               notificationId: id
+           ) {
+            DispatchQueue.main.async {
+                guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
+                    TetherLog("[NotificationPlugin] Native WhatsApp is not installed")
+                    completionHandler()
+                    return
+                }
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = true
+                NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, error in
+                    if let error { TetherLog("[NotificationPlugin] Could not open native WhatsApp: \(error)") }
+                    completionHandler()
+                }
+            }
             return
         }
 
