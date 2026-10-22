@@ -8,7 +8,7 @@ Planned features have no dates. Ideas and bug reports are welcome in [Issues](ht
 
 ## Available now
 
-As of Tether 1.8.
+As of Tether 1.9.
 
 ### Connecting
 - [x] Finds your phone automatically on the same Wi-Fi
@@ -23,14 +23,18 @@ As of Tether 1.8.
 - [x] Phone notifications in macOS Notification Center
 - [x] Reply to messages (SMS, WhatsApp, Telegram, Signal and others) from the banner
 - [x] Dismissing on the Mac dismisses on the phone
+- [x] Pictures from notifications, such as a sender's photo, in banners and in Tether's list
+- [x] No duplicate WhatsApp alerts while WhatsApp for Mac is running; clicking a WhatsApp notification opens it
 - [x] **Copy verification codes.** Sign-in codes in notifications get a Copy Code button in the banner and in Tether, with an option to copy them automatically
-- [x] Incoming and missed call notifications, with the caller's name and photo and a **Mute Ringer** button
+- [x] Incoming calls in a floating card with the caller's name and photo and a **Silence** button, which becomes an on-call pill with a timer
+- [x] Missed call notifications
 - [x] Pauses what's playing on the Mac during a call, and resumes it afterwards
 
 ### Messages
 - [x] SMS conversations sync to the Mac, with names and photos from your phone's contacts
 - [x] Read whole threads, with Load Earlier Messages, and send replies
-- [x] Start new conversations, picking a contact or typing a number
+- [x] Start new conversations in the conversation pane, picking a contact or typing a number
+- [x] Choose which SIM sends a text on dual-SIM phones, and name your SIMs
 
 ### Files and clipboard
 - [x] Send files by dropping them on the window or the menu bar popover
@@ -74,6 +78,8 @@ As of Tether 1.8.
 - [ ] **Search messages in Spotlight.**
 - [ ] **Type on your phone from the Mac keyboard**, using KDE Connect's keyboard on the phone.
 - [ ] **Phone as a drawing tablet**, with pressure, using KDE Connect's Digitizer.
+- [ ] **Every player on the Mac on your phone.** macOS reports one Now Playing app at a time; showing Safari and a second browser side by side needs undocumented per-app functions that may not be reachable.
+- [ ] **Keep messages on the Mac** so Messages opens instantly instead of fetching from the phone each launch.
 
 ## Not possible
 
@@ -84,4 +90,6 @@ These would need features the KDE Connect Android app doesn't have, or that macO
 - **Change ringer or notification volume.** The phone only accepts volume changes for an active media player.
 - **Show Mac notifications on the phone.** macOS doesn't let apps read other apps' notifications.
 - **Seek in a Safari video from the phone.** Safari ignores seeking from other apps; play, pause and skip work.
+- **Answer or decline calls from the Mac.** KDE Connect for Android can only silence the ringer, and call audio would stay on the phone anyway.
+- **Android app icons in notifications.** The phone sends a notification's picture but not the app's icon, and macOS always shows Tether's icon in the corner of a banner. Fetching icons online is off the table, since Tether doesn't use the internet.
 - **Clipboard images and files.** KDE Connect's clipboard sync is text only. Use Share or drag and drop instead.
