@@ -11,6 +11,8 @@
 //
 
 import AppKit
+import ImageIO
+import UniformTypeIdentifiers
 
 nonisolated struct MacNowPlaying: Sendable, Equatable {
     var title = ""
@@ -186,6 +188,31 @@ nonisolated final class NowPlayingReader: @unchecked Sendable {
         }
     }
 
+    /// Artwork as a JPEG or PNG no bigger than 1024 px. Safari hands over TIFF
+    /// (while calling it JPEG), which Android can't decode, so the phone
+    /// showed no art for videos.
+    nonisolated static func phoneReadable(_ data: Data) -> (Data, String)? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let type = CGImageSourceGetType(source) as String? else { return nil }
+        let size = (CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]).map {
+            max($0[kCGImagePropertyPixelWidth] as? Int ?? 0, $0[kCGImagePropertyPixelHeight] as? Int ?? 0)
+        } ?? 0
+        if size <= 1024 {
+            if type == UTType.jpeg.identifier { return (data, "image/jpeg") }
+            if type == UTType.png.identifier { return (data, "image/png") }
+        }
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: 1024,
+            kCGImageSourceCreateThumbnailWithTransform: true
+        ] as CFDictionary) else { return nil }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.85] as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return (output as Data, "image/jpeg")
+    }
+
     /// Reads the artwork with a one-off `get`: the stream leaves it out, since
     /// it would repeat hundreds of kilobytes in every update.
     private func fetchArtwork(for trackKey: String) {
@@ -202,8 +229,8 @@ nonisolated final class NowPlayingReader: @unchecked Sendable {
             process.waitUntilExit()
             guard let payload = try? JSONSerialization.jsonObject(with: output) as? [String: Any],
                   let base64 = payload["artworkData"] as? String,
-                  let data = Data(base64Encoded: base64), !data.isEmpty else { return }
-            let mimeType = payload["artworkMimeType"] as? String ?? "image/jpeg"
+                  let raw = Data(base64Encoded: base64), !raw.isEmpty,
+                  let (data, mimeType) = Self.phoneReadable(raw) else { return }
             self.queue.async {
                 guard var state = self.current, state.trackKey == trackKey else { return }
                 // A name that changes with the image, so the phone never shows
