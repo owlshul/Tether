@@ -31,6 +31,10 @@ import ScreenCaptureKit
                 try await render(MainWindowView(appModel: .mock(), initialSection: section),
                                  size: windowSize, dark: dark, to: dir.appendingPathComponent("main-\(section.rawValue)-\(suffix).png"))
             }
+            if let phone = TetherAppModel.mock().connectedDevices.first(where: { $0.id == "mock_phone" }) {
+                try await render(MessagesPane(device: phone, startsComposing: true), size: CGSize(width: 820, height: 560),
+                                 dark: dark, to: dir.appendingPathComponent("messages-compose-\(suffix).png"))
+            }
             try await render(MenuBarView(appModel: .mock()), size: CGSize(width: 320, height: 480), dark: dark,
                              titled: false, to: dir.appendingPathComponent("menubar-\(suffix).png"))
         }
