@@ -29,6 +29,8 @@ public final class DeviceViewModel: Identifiable, Hashable {
     public var isCharging: Bool
     public var networkType: String?
     public var cellularSignalStrength: Int?
+    /// The phone's SIMs, when it has reported them.
+    public var sims: [PhoneSIM] = []
 
     public var volume: Float
     public var isMuted: Bool
@@ -69,7 +71,7 @@ public final class DeviceViewModel: Identifiable, Hashable {
     public var onExecuteCommand: ((String) -> Void)?
     public var onSaveCommand: ((RemoteCommand) -> Void)?
     public var onDeleteCommand: ((String) -> Void)?
-    public var onSendSMS: (([String], String, Int64?) -> Void)?
+    public var onSendSMS: (([String], String, Int64?, Int64?) -> Void)?
     public var onRefreshMessages: (() -> Void)?
     public var onOpenThread: ((Int64) -> Void)?
     public var onLoadEarlierMessages: ((Int64) -> Void)?
@@ -175,8 +177,22 @@ public final class DeviceViewModel: Identifiable, Hashable {
     public func executeCommand(id: String) { onExecuteCommand?(id) }
     public func saveCommand(_ command: RemoteCommand) { onSaveCommand?(command) }
     public func deleteCommand(id: String) { onDeleteCommand?(id) }
-    public func sendSMS(to addresses: [String], message: String, threadId: Int64?) {
-        onSendSMS?(addresses, message, threadId)
+    public func sendSMS(to addresses: [String], message: String, threadId: Int64?, subId: Int64? = nil) {
+        onSendSMS?(addresses, message, threadId, subId)
+    }
+
+    /// The SIM to offer for a conversation: the one it last used, else the one
+    /// the latest sent message went out on, else the first.
+    func defaultSIM(for thread: SMSConversation?) -> Int64? {
+        let ids = Set(sims.map(\.id))
+        if let used = thread?.messages.last(where: { $0.subId.map(ids.contains) ?? false })?.subId {
+            return used
+        }
+        let lastSent = smsThreads
+            .flatMap(\.messages)
+            .filter { $0.isOutgoing && ($0.subId.map(ids.contains) ?? false) }
+            .max { $0.date < $1.date }
+        return lastSent?.subId ?? sims.first?.id
     }
     /// The thread's people by name where the phone's contacts know them.
     func title(for thread: SMSConversation) -> String {
@@ -248,6 +264,7 @@ extension DeviceViewModel {
             ]
         )
         phone.canSetVolume = true
+        phone.sims = [PhoneSIM(id: 1, number: 1, networkType: "5G"), PhoneSIM(id: 2, number: 2, networkType: "4G")]
         return phone
     }
 

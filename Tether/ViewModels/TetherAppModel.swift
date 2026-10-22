@@ -251,9 +251,9 @@ public final class TetherAppModel {
         vm.onDeleteCommand = { cmdId in
             service.runCommandPlugin.removeCommand(id: cmdId, connection: service.connectedDevices[deviceId])
         }
-        vm.onSendSMS = { addresses, text, threadId in
+        vm.onSendSMS = { addresses, text, threadId, subId in
             guard let conn = service.connectedDevices[deviceId] else { return }
-            service.smsPlugin.sendSMS(text: text, to: addresses, threadId: threadId, connection: conn)
+            service.smsPlugin.sendSMS(text: text, to: addresses, threadId: threadId, subId: subId, connection: conn)
         }
         vm.onRefreshMessages = {
             guard let conn = service.connectedDevices[deviceId] else { return }
@@ -296,6 +296,11 @@ public final class TetherAppModel {
                 update(dev, \.networkType, signal.networkType)
                 update(dev, \.cellularSignalStrength, signal.strength)
             }
+            let sims = (service.connectivityReportPlugin.subscriptions[id] ?? [:])
+                .sorted { $0.key < $1.key }
+                .enumerated()
+                .map { PhoneSIM(id: $1.key, number: $0 + 1, networkType: $1.value.shortLabel) }
+            update(dev, \.sims, sims)
             update(dev, \.transfers, service.sharePlugin.transfers.filter { $0.deviceId == id })
             update(dev, \.smsThreads, threads)
             update(dev, \.contacts, service.contactsPlugin.books[id] ?? ContactBook())
