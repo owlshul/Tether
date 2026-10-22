@@ -269,6 +269,10 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
         // A packet may announce a binary payload that follows on a separate TLS
         // connection. Fetch it in the background and deliver the bytes separately.
         guard let size = packet.payloadSize, size > 0 else { return }
+        // Notification artwork is small. Reject oversized announcements before
+        // opening a payload socket or consuming disk space; text still arrives.
+        if packet.type == "kdeconnect.notification",
+           size > NotificationImages.maximumPayloadSize { return }
         guard let rawPort = packet.payloadTransferInfo?["port"]?.value,
               let port = Self.payloadPort(from: rawPort) else {
             TetherLog("[TetherService] \(packet.type) announced \(size) bytes but no usable payload port: \(String(describing: packet.payloadTransferInfo))")
