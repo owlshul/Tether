@@ -20,7 +20,9 @@ final class CallMediaPauser {
         UserDefaults.standard.object(forKey: Self.settingKey) as? Bool ?? true
     }
 
-    /// Calls under way, as "deviceId/event".
+    /// Phones with a call ringing or under way. Keyed by phone, not by event:
+    /// an answered call goes from ringing to talking, and the phone only ends
+    /// the last one.
     private var activeCalls = Set<String>()
     private var pausedForCall = false
     private var resumeTask: Task<Void, Never>?

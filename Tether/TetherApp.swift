@@ -14,12 +14,18 @@ struct TetherApp: App {
         // `-TetherDemoData` fills the UI with sample devices for screenshots and
         // design work, without touching the network.
         // `-TetherDemoRinging` also shows the Ring panel, without sound.
+        // `-TetherDemoCall` also shows the incoming-call card.
         if ProcessInfo.processInfo.arguments.contains("-TetherDemoData") {
             _appModel = State(initialValue: .mock())
             PhoneFilesController.shared.showDemoDrive(for: "mock_phone")
             if ProcessInfo.processInfo.arguments.contains("-TetherDemoRinging") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                     MacRinger.shared.showDemoPanel(deviceName: "Pixel 9 Pro")
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-TetherDemoCall") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    CallCard.shared.showDemo()
                 }
             }
             return

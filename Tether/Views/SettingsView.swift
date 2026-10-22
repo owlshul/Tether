@@ -227,6 +227,7 @@ private struct GeneralSettings: View {
     @AppStorage(MotionPreference.key) private var reduceMotion = false
     @AppStorage(OneTimeCode.autoCopyKey) private var copyCodes = false
     @AppStorage(CallMediaPauser.settingKey) private var pauseMediaDuringCalls = true
+    @AppStorage(CallCard.settingKey) private var showCallCard = true
     @AppStorage(AwayLock.settingKey) private var lockWhenPhoneLeaves = false
 
     var body: some View {
@@ -254,6 +255,10 @@ private struct GeneralSettings: View {
                 Toggle(isOn: $copyCodes) {
                     Text("Copy verification codes automatically")
                     Text("When a notification from your phone contains a sign-in code, Tether puts it on the clipboard.")
+                }
+                Toggle(isOn: $showCallCard) {
+                    Text("Show calls in a floating card")
+                    Text("Incoming calls appear in a card at the top right that stays until the phone stops ringing, then becomes a small pill while you're on the call.")
                 }
                 Toggle(isOn: $pauseMediaDuringCalls) {
                     Text("Pause media during calls")
