@@ -27,6 +27,32 @@ struct TetherTests {
         #expect(decoded.int64(for: "timestamp") == 1234567890)
     }
 
+    /// KDE Connect Android ends a call with `"isCancel": "true"`, a string.
+    @Test func testBoolReadsStringsFromAndroid() throws {
+        let json = #"{"id":1,"type":"kdeconnect.telephony","body":{"event":"talking","isCancel":"true","a":true,"b":"false","c":"maybe"}}"#
+        let packet = try NetworkPacket.unserialize(from: Data(json.utf8))
+        #expect(packet.bool(for: "isCancel"))
+        #expect(packet.bool(for: "a"))
+        #expect(!packet.bool(for: "b", default: true))
+        #expect(packet.bool(for: "c", default: true))
+        #expect(!packet.bool(for: "missing"))
+    }
+
+    /// Values wrapped in AnyCodable inside other containers, as an SMS
+    /// request builds its address list, must still reach the wire.
+    @Test func testNestedAnyCodableSerializes() throws {
+        let packet = NetworkPacket(type: "kdeconnect.sms.request", body: [
+            "version": AnyCodable(2),
+            "addresses": AnyCodable([["address": AnyCodable("+15550100")]]),
+            "messageBody": AnyCodable("test")
+        ])
+        let json = try #require(try JSONSerialization.jsonObject(with: packet.serialize()) as? [String: Any])
+        let body = try #require(json["body"] as? [String: Any])
+        let addresses = try #require(body["addresses"] as? [[String: Any]])
+        #expect(addresses.first?["address"] as? String == "+15550100")
+        #expect(body["messageBody"] as? String == "test")
+    }
+
     @Test func testDeviceInfoPacketConversion() throws {
         let info = DeviceInfo(
             deviceId: "abcdef0123456789abcdef0123456789",

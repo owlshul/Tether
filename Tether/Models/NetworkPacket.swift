@@ -47,6 +47,13 @@ public struct AnyCodable: Codable, Sendable, Equatable {
     }
 
     public func encode(to encoder: Encoder) throws {
+        // A value wrapped twice, e.g. an AnyCodable inside a dictionary that is
+        // itself wrapped (an SMS request's addresses). Without this it fell
+        // through to null and the phone got no recipient.
+        if let nested = value as? AnyCodable {
+            try nested.encode(to: encoder)
+            return
+        }
         var container = encoder.singleValueContainer()
         switch value {
         case let bool as Bool:
@@ -107,8 +114,21 @@ public struct NetworkPacket: Codable, Sendable {
         unwrappedValue(for: key) as? String
     }
 
+    /// Also reads "true" and "false" as strings, which some peers send:
+    /// KDE Connect Android marks a call as over with `"isCancel": "true"`.
     public func bool(for key: String, default defaultValue: Bool = false) -> Bool {
-        (unwrappedValue(for: key) as? Bool) ?? defaultValue
+        let raw = unwrappedValue(for: key)
+        if let boolVal = raw as? Bool {
+            return boolVal
+        }
+        if let string = raw as? String {
+            switch string.lowercased() {
+            case "true": return true
+            case "false": return false
+            default: return defaultValue
+            }
+        }
+        return defaultValue
     }
 
     public func int(for key: String, default defaultValue: Int = 0) -> Int {
