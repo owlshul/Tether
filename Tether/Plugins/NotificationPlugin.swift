@@ -21,7 +21,26 @@ public struct PhoneNotification: Identifiable, Hashable, Sendable {
     /// A one-time verification code found in the title or text.
     public var code: String? = nil
     /// Artwork supplied by the phone; it may be a contact photo rather than an app logo.
-    public var imageData: Data? = nil
+    public var imageData: Data? = nil {
+        didSet { imageIsGlyph = imageData.map(NotificationImages.isGlyph) ?? false }
+    }
+    /// The artwork is the app's flat status-bar icon rather than a picture.
+    public private(set) var imageIsGlyph = false
+
+    public init(id: String, deviceId: String, appName: String, title: String, text: String, date: Date,
+                replyId: String?, isDismissable: Bool, code: String? = nil, imageData: Data? = nil) {
+        self.id = id
+        self.deviceId = deviceId
+        self.appName = appName
+        self.title = title
+        self.text = text
+        self.date = date
+        self.replyId = replyId
+        self.isDismissable = isDismissable
+        self.code = code
+        self.imageData = imageData
+        self.imageIsGlyph = imageData.map(NotificationImages.isGlyph) ?? false
+    }
 }
 
 public final class NotificationPlugin: NSObject, ObservableObject, TetherPlugin, UNUserNotificationCenterDelegate, @unchecked Sendable {
@@ -333,7 +352,9 @@ public final class NotificationPlugin: NSObject, ObservableObject, TetherPlugin,
                 : "Code \(code)"
         }
 
-        let prepared = item.imageData.flatMap { NotificationImages.attachment($0) }
+        // A status-bar glyph says nothing the banner doesn't, and is usually
+        // white, so only pictures are attached.
+        let prepared = item.imageIsGlyph ? nil : item.imageData.flatMap { NotificationImages.attachment($0) }
         if let prepared { content.attachments = [prepared.attachment] }
 
         let request = UNNotificationRequest(

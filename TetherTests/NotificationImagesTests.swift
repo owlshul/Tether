@@ -12,6 +12,41 @@ struct NotificationImagesTests {
         return try #require(bitmap.representation(using: .png, properties: [:]))
     }
 
+    /// A 32 px image drawn by `draw`, on transparency.
+    private func drawnPNG(_ draw: (CGContext) -> Void) throws -> Data {
+        let bitmap = try #require(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 32,
+            pixelsHigh: 32, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+            isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        let context = try #require(NSGraphicsContext(bitmapImageRep: bitmap))
+        draw(context.cgContext)
+        return try #require(bitmap.representation(using: .png, properties: [:]))
+    }
+
+    @Test func recognisesStatusBarGlyphsButNotPhotos() throws {
+        // Tailscale-style: a white shape on transparency.
+        let glyph = try drawnPNG { context in
+            context.setFillColor(.white)
+            context.fill(CGRect(x: 8, y: 8, width: 16, height: 16))
+        }
+        #expect(NotificationImages.isGlyph(glyph))
+
+        // A round avatar with an initial: transparent corners, two colours.
+        let avatar = try drawnPNG { context in
+            context.setFillColor(CGColor(red: 0.2, green: 0.5, blue: 0.9, alpha: 1))
+            context.fillEllipse(in: CGRect(x: 0, y: 0, width: 32, height: 32))
+            context.setFillColor(.white)
+            context.fill(CGRect(x: 12, y: 8, width: 8, height: 16))
+        }
+        #expect(!NotificationImages.isGlyph(avatar))
+
+        // A square photo: no transparency at all.
+        let photo = try drawnPNG { context in
+            context.setFillColor(.white)
+            context.fill(CGRect(x: 0, y: 0, width: 32, height: 32))
+        }
+        #expect(!NotificationImages.isGlyph(photo))
+    }
+
     @Test func cachesOnlyByDeviceAndExplicitImageHash() throws {
         let images = NotificationImages()
         let data = try png()

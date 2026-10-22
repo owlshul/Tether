@@ -63,7 +63,18 @@ private struct NotificationRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .center) {
-                if let data = notification.imageData, let image = NSImage(data: data) {
+                if notification.imageIsGlyph, let data = notification.imageData, let image = NSImage(data: data) {
+                    // Drawn like Android's status bar: the app's symbol in the text colour.
+                    Image(nsImage: image)
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 18, height: 18)
+                        .frame(width: 32, height: 32)
+                        .background(.quaternary, in: .rect(cornerRadius: 8, style: .continuous))
+                        .accessibilityLabel("\(notification.appName) icon")
+                } else if let data = notification.imageData, let image = NSImage(data: data) {
                     Image(nsImage: image)
                         .resizable()
                         .scaledToFit()
