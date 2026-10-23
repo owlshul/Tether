@@ -41,6 +41,8 @@ public struct SMSMessage: Identifiable, Sendable, Equatable {
     public let type: Int
     public let threadId: Int64
     public let read: Bool
+    /// The SIM it went through (`sub_id`), when the phone knows.
+    public let subId: Int64?
     public var attachments: [SMSAttachment]
 
     public var isOutgoing: Bool {
@@ -69,6 +71,7 @@ public struct SMSMessage: Identifiable, Sendable, Equatable {
         type: Int,
         threadId: Int64,
         read: Bool,
+        subId: Int64? = nil,
         attachments: [SMSAttachment] = []
     ) {
         self.id = id
@@ -79,6 +82,7 @@ public struct SMSMessage: Identifiable, Sendable, Equatable {
         self.type = type
         self.threadId = threadId
         self.read = read
+        self.subId = subId
         self.attachments = attachments
     }
 
@@ -96,6 +100,9 @@ public struct SMSMessage: Identifiable, Sendable, Equatable {
         } else {
             readVal = true
         }
+
+        // Phones that can't tell report 0, which isn't a real SIM.
+        let subId = (dict["sub_id"] as? Int64) ?? (dict["sub_id"] as? Int).map(Int64.init)
 
         let dateMs = (dict["date"] as? Int64) ?? Int64((dict["date"] as? Int) ?? 0)
         let date = dateMs > 0 ? Date(timeIntervalSince1970: Double(dateMs) / 1000.0) : Date()
@@ -133,6 +140,7 @@ public struct SMSMessage: Identifiable, Sendable, Equatable {
             type: type,
             threadId: threadId,
             read: readVal,
+            subId: subId.flatMap { $0 > 0 ? $0 : nil },
             attachments: parsedAttachments
         )
     }

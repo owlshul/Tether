@@ -127,20 +127,34 @@ public final class SMSPlugin: ObservableObject, TetherPlugin, @unchecked Sendabl
         connection.send(packet: packet)
     }
 
-    public func sendSMS(text: String, to addresses: [String], threadId: Int64? = nil, connection: DeviceConnection) {
+    /// Sends from SIM `subId` when given, else the one the conversation uses.
+    public func sendSMS(text: String, to addresses: [String], threadId: Int64? = nil, subId: Int64? = nil, connection: DeviceConnection) {
         guard !text.isEmpty, !addresses.isEmpty else { return }
 
         let addressList = addresses.map { ["address": AnyCodable($0)] }
-        let packet = NetworkPacket(
-            type: Self.requestType,
-            body: [
-                "version": AnyCodable(2),
-                "addresses": AnyCodable(addressList),
-                "messageBody": AnyCodable(text)
-            ]
-        )
+        var body: [String: AnyCodable] = [
+            "version": AnyCodable(2),
+            "addresses": AnyCodable(addressList),
+            "messageBody": AnyCodable(text)
+        ]
+        // Reply from the SIM the conversation uses, as desktop KDE Connect
+        // does. Without it the phone sends from its default SMS SIM, and a
+        // dual-SIM phone set to "Ask every time" has none, so nothing is sent.
+        // Only a SIM the phone reports now counts, and only when it has more
+        // than one: old messages can name a SIM that has since been replaced,
+        // and the phone silently drops a message for a SIM it doesn't have.
+        let activeSIMs = connection.peerDeviceInfo
+            .flatMap { TetherService.shared.connectivityReportPlugin.subscriptions[$0.deviceId] }
+            .map { Set($0.keys) } ?? []
+        let conversationSubId = threadId.flatMap { conversations[$0]?.messages.last(where: { $0.subId != nil })?.subId }
+        let chosenSubId = (subId ?? conversationSubId).flatMap { activeSIMs.count > 1 && activeSIMs.contains($0) ? $0 : nil }
+        if let chosenSubId {
+            body["subID"] = AnyCodable(chosenSubId)
+        }
+        let packet = NetworkPacket(type: Self.requestType, body: body)
         connection.send(packet: packet)
-        TetherLog("[SMSPlugin] Dispatched SMS to \(addresses.joined(separator: ", "))")
+        TetherLog("[SMSPlugin] Dispatched SMS to \(addresses.count) recipient(s), SIM \(chosenSubId.map(String.init) ?? "default")"
+            + " (asked for \((subId ?? conversationSubId).map(String.init) ?? "none"), phone has \(activeSIMs.sorted()))")
 
         // Optimistically add to local messages
         if let targetThreadId = threadId {

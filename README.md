@@ -51,7 +51,13 @@ On your phone, install **KDE Connect** from [Google Play](https://play.google.co
 
 **Notifications, answered from the Mac.** Phone notifications appear in Notification Center. Messaging apps that support it (SMS, WhatsApp, Telegram, Signal and others) can be replied to right from the banner, and anything you dismiss on the Mac is dismissed on the phone. Sign-in codes get a **Copy Code** button, or can be copied automatically.
 
-**Your texts.** SMS conversations sync to the Messages section, with names and photos from your phone's contacts. Read whole threads, reply, or start a new conversation. Calls show who's calling, with a button to mute the ringer, and whatever is playing on the Mac pauses until the call ends.
+Phone-supplied notification images also appear in Tether’s notification list and, when available in time, as image attachments in Notification Center. macOS still uses Tether’s app icon; the phone image may be an avatar rather than the Android app logo. See [notification images and limitations](docs/notification-images.md).
+
+When the native WhatsApp app is running on the Mac, Tether keeps phone WhatsApp notifications in its list but skips their system alerts to avoid duplicates. Quit WhatsApp to receive those alerts through Tether again. Clicking the body of a mirrored WhatsApp alert opens and activates native WhatsApp, even if the phone has since disconnected; Reply, Dismiss and Copy Code keep their existing actions. This includes WhatsApp running hidden or minimized; it does not check which account is signed in or whether WhatsApp's own alerts are enabled.
+
+**Your texts.** SMS conversations sync to the Messages section, with names and photos from your phone's contacts. Read whole threads, reply, or start a new conversation right in the conversation pane. On a dual-SIM phone, pick which SIM each text goes out on, and name your SIMs after their carriers.
+
+**Calls.** An incoming call shows in a card at the top right with the caller's name and photo, and a button to silence the ringer. Answer on the phone and it becomes a small pill with a call timer. Whatever is playing on the Mac pauses until the call ends.
 
 **Files, both ways.** Drop files anywhere in the Tether window or on the menu bar popover, or choose **Share › Tether** in Finder, Photos and other apps, to send them to your phone. With more than one phone connected, the Share menu asks which one. Files shared from your phone land in **Downloads** with live progress.
 

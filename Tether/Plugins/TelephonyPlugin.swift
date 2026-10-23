@@ -3,7 +3,7 @@
 //  Tether
 //
 
-import Foundation
+import AppKit
 import UserNotifications
 
 /// Incoming call and messaging events from the phone.
@@ -39,12 +39,16 @@ public final class TelephonyPlugin: ObservableObject, TetherPlugin, @unchecked S
         let event = packet.string(for: "event") ?? ""
         let identifier = "tether-telephony-\(deviceId)-\(event)"
         let isCall = event == "ringing" || event == "talking"
+        TetherLog("[TelephonyPlugin] \(event)\(packet.bool(for: "isCancel") ? " cancelled" : "") from \(connection.peerDeviceInfo?.deviceName ?? deviceId)")
 
         // A cancel retracts what was posted for this event; for a call, it ended.
         if packet.bool(for: "isCancel") {
             UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [identifier])
             if isCall {
-                Task { @MainActor in CallMediaPauser.shared.callEnded("\(deviceId)/\(event)") }
+                Task { @MainActor in
+                    CallMediaPauser.shared.callEnded(deviceId)
+                    CallCard.shared.ended(deviceId: deviceId)
+                }
                 DispatchQueue.main.async {
                     self.ringingCalls.removeValue(forKey: deviceId)
                 }
@@ -52,7 +56,7 @@ public final class TelephonyPlugin: ObservableObject, TetherPlugin, @unchecked S
             return
         }
         if isCall {
-            Task { @MainActor in CallMediaPauser.shared.callStarted("\(deviceId)/\(event)") }
+            Task { @MainActor in CallMediaPauser.shared.callStarted(deviceId) }
         }
 
         // The phone's own contact name wins; otherwise Tether's copy of the
@@ -63,6 +67,24 @@ public final class TelephonyPlugin: ObservableObject, TetherPlugin, @unchecked S
         let who = name ?? number ?? "Unknown number"
         let photo = packet.string(for: "phoneThumbnail").flatMap { Data(base64Encoded: $0, options: .ignoreUnknownCharacters) }
             ?? contact?.photo
+
+        // Calls go to the floating card instead of a banner; a missed call
+        // closes it and is posted as usual.
+        if CallCard.isEnabled, event == "ringing" || event == "talking" || event == "missedCall" {
+            let caller = CallCard.Caller(
+                name: who, isContact: name != nil, number: name != nil ? number : nil,
+                photo: photo.flatMap(NSImage.init(data:)),
+                deviceName: connection.peerDeviceInfo?.deviceName ?? "your phone"
+            )
+            Task { @MainActor in
+                switch event {
+                case "ringing": CallCard.shared.ringing(deviceId: deviceId, caller: caller)
+                case "talking": CallCard.shared.talking(deviceId: deviceId, caller: caller)
+                default: CallCard.shared.missed(deviceId: deviceId)
+                }
+            }
+            if event != "missedCall" { return }
+        }
 
         let content = UNMutableNotificationContent()
         switch event {

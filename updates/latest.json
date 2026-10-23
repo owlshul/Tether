@@ -1,17 +1,17 @@
 {
-  "version": "1.8",
-  "tag": "v1.8",
-  "notes": "### 👤 Names and photos from your contacts\n- Messages show who you're texting, with their photo, instead of bare numbers.\n- Calls show the caller's name and photo, with a **Mute Ringer** button.\n- Tether keeps a copy of your phone's contacts on the Mac, readable only by you, and only fetches what changed.\n\n### 💬 Messages\n- Conversations now show their whole history, not just the latest message. **Load Earlier Messages** goes further back.\n- Start a new conversation with **New Message** (⌘N): pick a contact or type a number.\n\n### 🎵 Control your Mac from your phone\n- KDE Connect's **Multimedia control** on the phone now lists **This Mac**: see what's playing (Music, Spotify, even a YouTube video in Safari) with artwork, play, pause and skip.\n- The **Volume** tab next to it sets the Mac's volume, and follows changes you make on the Mac.\n- Album art from your phone now shows on the Mac too.\n- While your phone rings or you're on a call, what's playing on the Mac pauses, and resumes afterwards. Turn it off in **Settings › General**.\n\n### ⚡ More from your phone\n- **Run your Shortcuts:** turn on **Commands › Show my Shortcuts on the phone** to run any shortcut from KDE Connect's Run Command.\n- **Lock the Mac when your phone leaves:** an option in **Settings › General**. It waits half a minute, so a phone switching networks doesn't lock you out.\n\n### ✨ Liquid Glass everywhere\n- The Notifications, Files, Commands and Messages tabs now use the same glass panels as the Overview. Notifications are grouped by app.\n\n### 🔧 Fixes\n- A phone connected over Wi-Fi no longer disconnects and reconnects every 90 seconds when it's also on Tailscale.\n- The phone drive stays mounted through a short disconnect, and unmounting no longer freezes Tether for a few seconds.\n- Sending several files survives the phone reconnecting partway.\n- A smaller download: 2.6 MB, down from 3.2 MB, now that release builds leave out debugging symbols.",
+  "version": "1.9",
+  "tag": "v1.9",
+  "notes": "### 💬 Texts send again\n- **Fixed: texts sent from the Mac never arrived.** Tether was sending them without a recipient, so the phone quietly dropped them. Thanks to everyone on Reddit who reported it.\n- **New Message** now opens right in the conversation pane, like Messages: type a name or number, pick a contact with the arrow keys, and write. If you've texted them before, the conversation's history is right there.\n- **Dual-SIM phones:** a SIM menu next to the send button picks which SIM a text goes out on. Replies use the SIM the conversation is already on. Name your SIMs after their carriers from the same menu.\n\n### 📞 A call card instead of a banner\n- Incoming calls show in a card at the top right with the caller's photo and name, and a **Silence** button that mutes the phone's ringer.\n- Answer on the phone and it shrinks to a small pill with a call timer, and goes away when you hang up.\n- Prefer the old banner? Turn it off in **Settings › General**.\n- KDE Connect can't answer or decline calls from a computer, so the card doesn't pretend to.\n\n### 🖼️ Pictures in notifications, by @ronal2s (#2)\n- Notifications show the picture your phone sends with them, such as the sender's photo, in the banner and in the Notifications tab.\n- With WhatsApp for Mac running, WhatsApp messages no longer alert twice. Clicking a WhatsApp notification opens WhatsApp for Mac.\n- Apps without a picture of their own, like Tailscale or Truecaller, show their icon as a tidy symbol instead of a stretched white shape.\n- About app icons: banners always show Tether's icon in the corner. macOS doesn't let apps change it, and your phone doesn't send the app's own icon.\n\nThank you @ronal2s for Tether's first outside contribution!\n\n### 🔋 The Mac's battery on your phone\n- KDE Connect's device list on the phone now shows your MacBook's charge, and whether it's plugged in.\n\n### 🔧 Fixes\n- Calls now end on the Mac when they end on the phone. Before, \"Call in progress\" stayed, and music paused for a call never came back.\n- Video thumbnails from Safari now show on the phone in KDE Connect's media controls. Album art is sent sharper, up to 1024 px.",
   "archives": {
     "AppleSilicon": {
-      "name": "Tether-1.8-AppleSilicon.zip",
-      "size": 2330325,
-      "sha256": "d4665c74740cdd7e93d4ef4dce1fcad98955ae663ca3cded1ed3c4581b7b9a8c"
+      "name": "Tether-1.9-AppleSilicon.zip",
+      "size": 2420100,
+      "sha256": "3dabe2af61704b11f71a4ff1e26026fac871a8725ca2c6ea0888c710a7cadd9b"
     },
     "Intel": {
-      "name": "Tether-1.8-Intel.zip",
-      "size": 2458101,
-      "sha256": "a380e970923feeef3844c3d87a80822696310fdaa21001b702f8a2a3d0d517a8"
+      "name": "Tether-1.9-Intel.zip",
+      "size": 2557211,
+      "sha256": "62a34943b3cbea7f917466ec941064ea916b6785b1938904f38e92a1fe854296"
     }
   }
 }
