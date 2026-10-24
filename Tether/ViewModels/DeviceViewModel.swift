@@ -90,6 +90,7 @@ public final class DeviceViewModel: Identifiable, Hashable {
     public var onSendFiles: (([URL]) -> Void)?
     public var onFindPhone: (() -> Void)?
     public var onLockDevice: (() -> Void)?
+    public var onCallNumber: ((String) -> Void)?
     public var onSilenceRinger: (() -> Void)?
     public var onSilenceAlarms: (() -> Void)?
     public var onSilencePhone: (() -> Void)?
@@ -246,6 +247,42 @@ public final class DeviceViewModel: Identifiable, Hashable {
     func photo(for thread: SMSConversation) -> Data? {
         guard thread.addresses.count == 1, let address = thread.addresses.first else { return nil }
         return contacts.contact(for: address)?.photo
+    }
+
+    // MARK: - Calling
+
+    public func callNumber(_ number: String) {
+        onCallNumber?(number)
+    }
+
+    var kashishContact: Contact? {
+        if let direct = contacts.search("Kashish").first {
+            return contacts.contact(for: direct.number)
+        }
+        let fallbackNumber = UserDefaults.standard.string(forKey: MenuBarQuickActionsSettings.kashishNumberKey) ?? MenuBarQuickActionsSettings.defaultKashishNumber
+        return contacts.contact(for: fallbackNumber)
+    }
+
+    public var kashishDisplayName: String {
+        if let contact = kashishContact {
+            return contact.name
+        }
+        return UserDefaults.standard.string(forKey: MenuBarQuickActionsSettings.kashishNameKey) ?? MenuBarQuickActionsSettings.defaultKashishName
+    }
+
+    public var kashishPhoneNumber: String {
+        if let contact = kashishContact, let num = contact.numbers.first {
+            return num
+        }
+        return UserDefaults.standard.string(forKey: MenuBarQuickActionsSettings.kashishNumberKey) ?? MenuBarQuickActionsSettings.defaultKashishNumber
+    }
+
+    public var kashishPhotoData: Data? {
+        kashishContact?.photo
+    }
+
+    public func callKashish() {
+        callNumber(kashishPhoneNumber)
     }
 
     public func refreshMessages() { onRefreshMessages?() }

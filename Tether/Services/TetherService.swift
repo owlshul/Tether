@@ -433,6 +433,36 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
         lockDevicePlugin.lock(connection: conn)
     }
 
+    public func dialPhone(number: String, deviceId: String) {
+        let cleanNumber = number.filter { "+0123456789".contains($0) }
+        guard let url = URL(string: "tel:\(cleanNumber)") else { return }
+
+        if let conn = connectedDevices[deviceId] {
+            sharePlugin.sendURL(url, to: conn)
+            TetherLog("[TetherService] Sent tel URL to \(conn.peerDeviceInfo?.deviceName ?? deviceId): \(cleanNumber)")
+        }
+
+        let adbAddress = PhoneFilesController.shared.adbAddress(for: deviceId)
+        if !adbAddress.isEmpty, let adb = ADBTransport.executable {
+            Task.detached {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: adb)
+                process.arguments = ["-s", adbAddress, "shell", "am", "start", "-a", "android.intent.action.CALL", "-d", "tel:\(cleanNumber)"]
+                try? process.run()
+                process.waitUntilExit()
+                TetherLog("[TetherService] Triggered ADB direct call to \(cleanNumber)")
+            }
+        }
+
+        let content = UNMutableNotificationContent()
+        let name = contactsPlugin.contact(for: number, on: deviceId)?.name ?? "Kashish"
+        content.title = "Calling \(name)"
+        content.body = "Dialing \(number) on your phone..."
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: "tether-call-\(UUID().uuidString)", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
     public func mediaAction(_ action: String, deviceId: String) {
         guard let conn = connectedDevices[deviceId] else { return }
         mediaControlPlugin.sendAction(action, connection: conn)

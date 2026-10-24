@@ -160,6 +160,8 @@ public struct MenuBarView: View {
             .padding(.horizontal, 6)
             .padding(.top, 4)
 
+            callKashishButton(for: device)
+
             HStack(spacing: 0) {
                 GlassCircleButton(title: "Find", systemImage: "speaker.wave.3.fill", size: 40) { device.findMyPhone() }
                     .frame(maxWidth: .infinity)
@@ -205,6 +207,64 @@ public struct MenuBarView: View {
         .buttonStyle(.borderless)
         .fixedSize()
         .accessibilityLabel("Choose device")
+    }
+
+    private func callKashishButton(for device: DeviceViewModel) -> some View {
+        Button {
+            device.callKashish()
+        } label: {
+            HStack(spacing: 8) {
+                if let photoData = device.kashishPhotoData, let nsImage = NSImage(data: photoData) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 26, height: 26)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.green, lineWidth: 1.5))
+                } else {
+                    ZStack {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 26, height: 26)
+                        Image(systemName: "phone.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 4) {
+                        Text("Call \(device.kashishDisplayName)")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.primary)
+                        Text("• One-Tap")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.green)
+                    }
+                    Text(device.kashishPhoneNumber)
+                        .font(.system(size: 10, weight: .regular))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "phone.arrow.up.right.fill")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(5)
+                    .background(Color.green, in: Circle())
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(Color.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.green.opacity(0.25), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
     }
 
     private func ringingCallBanner(_ device: DeviceViewModel) -> some View {

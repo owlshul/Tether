@@ -18,6 +18,12 @@ public enum MenuBarQuickActionsSettings {
     public static let showClipboardKey = "TetherShowMenuBarClipboard"
     public static let showSendFilesKey = "TetherShowMenuBarSendFiles"
     public static let showBatteryKey = "TetherShowMenuBarBattery"
+    public static let showCallKashishKey = "TetherShowMenuBarCallKashish"
+    public static let kashishNameKey = "TetherQuickCallName"
+    public static let kashishNumberKey = "TetherQuickCallNumber"
+
+    public static let defaultKashishName = "Kashish"
+    public static let defaultKashishNumber = "+919773747984"
 
     public static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
@@ -27,7 +33,10 @@ public enum MenuBarQuickActionsSettings {
             showFindPhoneKey: true,
             showClipboardKey: true,
             showSendFilesKey: true,
-            showBatteryKey: true
+            showBatteryKey: true,
+            showCallKashishKey: true,
+            kashishNameKey: defaultKashishName,
+            kashishNumberKey: defaultKashishNumber
         ])
     }
 }
@@ -44,6 +53,7 @@ public final class MenuBarQuickActionsController: NSObject {
     private var findPhoneItem: NSStatusItem?
     private var clipboardItem: NSStatusItem?
     private var sendFilesItem: NSStatusItem?
+    private var callKashishItem: NSStatusItem?
     private var primaryStatusItem: NSStatusItem?
     private var isStarted = false
 
@@ -172,6 +182,21 @@ public final class MenuBarQuickActionsController: NSObject {
             button.sendAction(on: [.leftMouseUp])
         }
         self.sendFilesItem = files
+
+        // Call Kashish item
+        let call = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        call.autosaveName = "com.subhashh.tether.action.callkashish"
+        if let button = call.button {
+            let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+            let img = NSImage(systemSymbolName: "phone.fill", accessibilityDescription: "Call Kashish")?.withSymbolConfiguration(config)
+            img?.isTemplate = true
+            button.image = img
+            button.imagePosition = .imageOnly
+            button.target = self
+            button.action = #selector(handleCallKashish(_:))
+            button.sendAction(on: [.leftMouseUp])
+        }
+        self.callKashishItem = call
     }
 
     public func updateItems() {
@@ -186,6 +211,7 @@ public final class MenuBarQuickActionsController: NSObject {
         let showFind = defaults.bool(forKey: MenuBarQuickActionsSettings.showFindPhoneKey)
         let showClip = defaults.bool(forKey: MenuBarQuickActionsSettings.showClipboardKey)
         let showSend = defaults.bool(forKey: MenuBarQuickActionsSettings.showSendFilesKey)
+        let showCallKashish = defaults.bool(forKey: MenuBarQuickActionsSettings.showCallKashishKey)
 
         guard let device = appModel?.primaryDevice, quickActionsEnabled else {
             silenceItem?.isVisible = false
@@ -193,6 +219,7 @@ public final class MenuBarQuickActionsController: NSObject {
             findPhoneItem?.isVisible = false
             clipboardItem?.isVisible = false
             sendFilesItem?.isVisible = false
+            callKashishItem?.isVisible = false
             return
         }
 
@@ -232,11 +259,17 @@ public final class MenuBarQuickActionsController: NSObject {
         // Send Files
         sendFilesItem?.isVisible = showSend
         sendFilesItem?.button?.toolTip = "Send Files to \(name)"
+
+        // Call Kashish
+        callKashishItem?.isVisible = showCallKashish
+        let kashishName = device.kashishDisplayName
+        let kashishNumber = device.kashishPhoneNumber
+        callKashishItem?.button?.toolTip = "Call \(kashishName) (\(kashishNumber))"
     }
 
     private func findPrimaryStatusItem() -> NSStatusItem? {
         if let primary = primaryStatusItem { return primary }
-        let known: Set<NSStatusItem> = Set([silenceItem, mediaItem, findPhoneItem, clipboardItem, sendFilesItem].compactMap { $0 })
+        let known: Set<NSStatusItem> = Set([silenceItem, mediaItem, findPhoneItem, clipboardItem, sendFilesItem, callKashishItem].compactMap { $0 })
         guard let ivar = class_getInstanceVariable(NSStatusBar.self, "_items"),
               let pointerArray = object_getIvar(NSStatusBar.system, ivar) as? NSPointerArray else {
             return nil
@@ -315,5 +348,10 @@ public final class MenuBarQuickActionsController: NSObject {
         if !files.isEmpty {
             device.sendFiles(files)
         }
+    }
+
+    @objc private func handleCallKashish(_ sender: Any?) {
+        guard let device = appModel?.primaryDevice else { return }
+        device.callKashish()
     }
 }

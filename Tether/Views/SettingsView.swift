@@ -236,6 +236,9 @@ private struct GeneralSettings: View {
     @AppStorage(MenuBarQuickActionsSettings.showClipboardKey) private var showClipboard = true
     @AppStorage(MenuBarQuickActionsSettings.showSendFilesKey) private var showSendFiles = true
     @AppStorage(MenuBarQuickActionsSettings.showBatteryKey) private var showBattery = true
+    @AppStorage(MenuBarQuickActionsSettings.showCallKashishKey) private var showCallKashish = true
+    @AppStorage(MenuBarQuickActionsSettings.kashishNameKey) private var quickCallName = MenuBarQuickActionsSettings.defaultKashishName
+    @AppStorage(MenuBarQuickActionsSettings.kashishNumberKey) private var quickCallNumber = MenuBarQuickActionsSettings.defaultKashishNumber
     @AppStorage("TetherNotifyOnClipboardSync") private var notifyClipboard = true
     @AppStorage(BatteryAlertManager.lowAlertKey) private var lowBatteryAlert = true
     @AppStorage(BatteryAlertManager.fullAlertKey) private var fullBatteryAlert = true
@@ -288,11 +291,22 @@ private struct GeneralSettings: View {
                     Toggle("Find phone icon", isOn: $showFindPhone)
                     Toggle("Send clipboard icon", isOn: $showClipboard)
                     Toggle("Send files icon", isOn: $showSendFiles)
+                    Toggle("Call Kashish icon", isOn: $showCallKashish)
                 }
             } header: {
                 Text("Menu Bar Quick Actions")
             } footer: {
-                Text("The main menu bar icon displays your phone and battery percentage to open Tether. These additional icons provide instant top-bar access to Silence, Music, Find Phone, Send Clipboard, and Send Files.")
+                Text("The main menu bar icon displays your phone and battery percentage to open Tether. These additional icons provide instant top-bar access to Silence, Music, Find Phone, Send Clipboard, Send Files, and Call Kashish.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                TextField("Contact Name", text: $quickCallName)
+                TextField("Phone Number", text: $quickCallNumber)
+            } header: {
+                Text("Quick Call (Speed Dial)")
+            } footer: {
+                Text("One-touch speed dial button to immediately dial your favorite contact on your phone from the menu bar and device card.")
                     .foregroundStyle(.secondary)
             }
 

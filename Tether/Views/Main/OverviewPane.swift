@@ -56,6 +56,8 @@ struct OverviewPane: View {
                 }
             }
 
+            callKashishButton(for: device)
+
             HStack(spacing: 22) {
                 GlassCircleButton(title: "Find", systemImage: "speaker.wave.3.fill") { device.findMyPhone() }
                 GlassCircleButton(
@@ -133,6 +135,67 @@ struct OverviewPane: View {
 
             RemoteInputRow()
         }
+    }
+
+    private func callKashishButton(for device: DeviceViewModel) -> some View {
+        Button {
+            device.callKashish()
+        } label: {
+            HStack(spacing: 10) {
+                if let photoData = device.kashishPhotoData, let nsImage = NSImage(data: photoData) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 32, height: 32)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.green, lineWidth: 1.5))
+                } else {
+                    ZStack {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "phone.fill")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 6) {
+                        Text("Call \(device.kashishDisplayName)")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.primary)
+                        Text("• One-Tap Speed Dial")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.green)
+                    }
+                    Text(device.kashishPhoneNumber)
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                HStack(spacing: 6) {
+                    Image(systemName: "phone.arrow.up.right.fill")
+                        .font(.system(size: 13, weight: .bold))
+                    Text("Call Now")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.green, in: Capsule())
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Color.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.green.opacity(0.3), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 

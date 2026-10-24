@@ -246,6 +246,7 @@ public final class TetherAppModel {
         vm.onSendFiles = { urls in service.sendFiles(urls, to: deviceId) }
         vm.onFindPhone = { service.ringPhone(deviceId) }
         vm.onLockDevice = { service.lockPhone(deviceId) }
+        vm.onCallNumber = { number in service.dialPhone(number: number, deviceId: deviceId) }
         vm.onSilenceRinger = { service.silenceRinger(deviceId: deviceId) }
         vm.onSilenceAlarms = { service.silenceAlarms(deviceId: deviceId) }
         vm.onSilencePhone = { service.silencePhone(deviceId: deviceId) }
