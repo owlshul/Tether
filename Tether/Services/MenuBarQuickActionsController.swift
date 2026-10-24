@@ -21,6 +21,7 @@ public enum MenuBarQuickActionsSettings {
     public static let showCallKashishKey = "TetherShowMenuBarCallKashish"
     public static let kashishNameKey = "TetherQuickCallName"
     public static let kashishNumberKey = "TetherQuickCallNumber"
+    public static let kashishAdbKey = "TetherQuickCallAdbAddress"
 
     public static let defaultKashishName = "Kashish"
     public static let defaultKashishNumber = "+919773747984"
@@ -36,7 +37,8 @@ public enum MenuBarQuickActionsSettings {
             showBatteryKey: true,
             showCallKashishKey: true,
             kashishNameKey: defaultKashishName,
-            kashishNumberKey: defaultKashishNumber
+            kashishNumberKey: defaultKashishNumber,
+            kashishAdbKey: ""
         ])
     }
 }

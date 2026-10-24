@@ -437,30 +437,75 @@ public final class TetherService: ObservableObject, UDPDiscoveryDelegate, TCPLis
         let cleanNumber = number.filter { "+0123456789".contains($0) }
         guard let url = URL(string: "tel:\(cleanNumber)") else { return }
 
-        if let conn = connectedDevices[deviceId] {
-            sharePlugin.sendURL(url, to: conn)
-            TetherLog("[TetherService] Sent tel URL to \(conn.peerDeviceInfo?.deviceName ?? deviceId): \(cleanNumber)")
+        let conn = connectedDevices[deviceId]
+        let host = conn?.host ?? ""
+
+        // Target ADB address: explicit override, or files ADB, or auto phone host:5555
+        let customAdb = UserDefaults.standard.string(forKey: MenuBarQuickActionsSettings.kashishAdbKey)?.trimmingCharacters(in: .whitespaces) ?? ""
+        let filesAdb = PhoneFilesController.shared.adbAddress(for: deviceId)
+        let adbAddress: String
+        if !customAdb.isEmpty {
+            adbAddress = customAdb
+        } else if !filesAdb.isEmpty {
+            adbAddress = filesAdb
+        } else if !host.isEmpty {
+            adbAddress = "\(host):5555"
+        } else {
+            adbAddress = ""
         }
 
-        let adbAddress = PhoneFilesController.shared.adbAddress(for: deviceId)
-        if !adbAddress.isEmpty, let adb = ADBTransport.executable {
-            Task.detached {
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: adb)
-                process.arguments = ["-s", adbAddress, "shell", "am", "start", "-a", "android.intent.action.CALL", "-d", "tel:\(cleanNumber)"]
-                try? process.run()
-                process.waitUntilExit()
-                TetherLog("[TetherService] Triggered ADB direct call to \(cleanNumber)")
+        let adbExecutable = ADBTransport.executable
+
+        Task.detached { [weak self] in
+            var adbSucceeded = false
+            if let adb = adbExecutable, !adbAddress.isEmpty {
+                // Try connecting to ADB
+                let connectProc = Process()
+                connectProc.executableURL = URL(fileURLWithPath: adb)
+                connectProc.arguments = ["connect", adbAddress]
+                let connectPipe = Pipe()
+                connectProc.standardOutput = connectPipe
+                connectProc.standardError = connectPipe
+                try? connectProc.run()
+                connectProc.waitUntilExit()
+                let connectOut = String(decoding: connectPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+                TetherLog("[TetherService] ADB connect \(adbAddress): \(connectOut.trimmingCharacters(in: .whitespacesAndNewlines))")
+
+                // Execute CALL intent directly via root/shell (bypasses "tap to open")
+                let callProc = Process()
+                callProc.executableURL = URL(fileURLWithPath: adb)
+                callProc.arguments = ["-s", adbAddress, "shell", "am", "start", "-a", "android.intent.action.CALL", "-d", "tel:\(cleanNumber)"]
+                let callPipe = Pipe()
+                callProc.standardOutput = callPipe
+                callProc.standardError = callPipe
+                try? callProc.run()
+                callProc.waitUntilExit()
+                let callOut = String(decoding: callPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+                TetherLog("[TetherService] ADB direct call result (\(callProc.terminationStatus)): \(callOut.trimmingCharacters(in: .whitespacesAndNewlines))")
+
+                if callProc.terminationStatus == 0 && (callOut.contains("Starting: Intent") || (!callOut.contains("error") && !callOut.contains("Error") && !callOut.contains("failed"))) {
+                    adbSucceeded = true
+                }
+            }
+
+            if !adbSucceeded {
+                // Only send share URL if ADB couldn't place the direct call
+                if let conn = conn, let self = self {
+                    self.sharePlugin.sendURL(url, to: conn)
+                    TetherLog("[TetherService] Fallback to share URL for \(cleanNumber) (device showed 'tap to open')")
+                }
+            }
+
+            await MainActor.run {
+                let content = UNMutableNotificationContent()
+                let name = self?.contactsPlugin.contact(for: number, on: deviceId)?.name ?? "Kashish"
+                content.title = adbSucceeded ? "Calling \(name) Directly" : "Calling \(name)"
+                content.body = adbSucceeded ? "Direct root call placed to \(number)" : "Dialing \(number) on your phone..."
+                content.sound = .default
+                let request = UNNotificationRequest(identifier: "tether-call-\(UUID().uuidString)", content: content, trigger: nil)
+                UNUserNotificationCenter.current().add(request)
             }
         }
-
-        let content = UNMutableNotificationContent()
-        let name = contactsPlugin.contact(for: number, on: deviceId)?.name ?? "Kashish"
-        content.title = "Calling \(name)"
-        content.body = "Dialing \(number) on your phone..."
-        content.sound = .default
-        let request = UNNotificationRequest(identifier: "tether-call-\(UUID().uuidString)", content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request)
     }
 
     public func mediaAction(_ action: String, deviceId: String) {

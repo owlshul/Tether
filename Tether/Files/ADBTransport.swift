@@ -35,6 +35,7 @@ actor ADBTransport: PhoneFileTransport {
     static let searchPaths: [String] = {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return [
+            "\(home)/.brew/bin/adb",
             "\(home)/Library/Android/sdk/platform-tools/adb",
             "/opt/homebrew/bin/adb",
             "/usr/local/bin/adb",

@@ -239,6 +239,7 @@ private struct GeneralSettings: View {
     @AppStorage(MenuBarQuickActionsSettings.showCallKashishKey) private var showCallKashish = true
     @AppStorage(MenuBarQuickActionsSettings.kashishNameKey) private var quickCallName = MenuBarQuickActionsSettings.defaultKashishName
     @AppStorage(MenuBarQuickActionsSettings.kashishNumberKey) private var quickCallNumber = MenuBarQuickActionsSettings.defaultKashishNumber
+    @AppStorage(MenuBarQuickActionsSettings.kashishAdbKey) private var quickCallAdbAddress = ""
     @AppStorage("TetherNotifyOnClipboardSync") private var notifyClipboard = true
     @AppStorage(BatteryAlertManager.lowAlertKey) private var lowBatteryAlert = true
     @AppStorage(BatteryAlertManager.fullAlertKey) private var fullBatteryAlert = true
@@ -303,11 +304,15 @@ private struct GeneralSettings: View {
             Section {
                 TextField("Contact Name", text: $quickCallName)
                 TextField("Phone Number", text: $quickCallNumber)
+                TextField("Direct Dial Address (ADB / Root)", text: $quickCallAdbAddress, prompt: Text("e.g. 192.168.1.37:5555 (empty = auto)"))
             } header: {
                 Text("Quick Call (Speed Dial)")
             } footer: {
-                Text("One-touch speed dial button to immediately dial your favorite contact on your phone from the menu bar and device card.")
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("One-touch speed dial button to immediately dial on your phone from the menu bar and device card.")
+                    Text("For rooted phones: Enable ADB on port 5555 (run `su -c \"setprop service.adb.tcp.port 5555 && stop adbd && start adbd\"` on phone) to bypass 'Tap to open' and place direct zero-click calls.")
+                }
+                .foregroundStyle(.secondary)
             }
 
             Section {
